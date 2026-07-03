@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash"
+    ]
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
+}

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semantica"
+version = "0.1.0"
+description = "OSI-native semantic layer: author models once, transpile to warehouse-native SQL and BI/AI consumer formats"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "PyYAML>=6.0",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "duckdb>=1.0",
+]
+
+[project.scripts]
+semantica = "semantica.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semantica"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

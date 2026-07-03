@@ -1,0 +1,10 @@
+Semantica
+Copyright 2026 Puspendu Banerjee
+
+This product includes software from the following third-party projects:
+
+Open Semantic Interchange (OSI) reference Python types
+  https://github.com/open-semantic-interchange/OSI
+  Copyright Open Semantic Interchange contributors
+  Licensed under the Apache License, Version 2.0
+  Vendored at src/semantica/_vendor/osi/ (see NOTICE.md there for details)

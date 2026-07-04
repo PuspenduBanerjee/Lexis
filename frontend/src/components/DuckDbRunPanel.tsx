@@ -19,6 +19,7 @@ export function DuckDbRunPanel({ model }: { model: ModelDetailOut }) {
     queryFn: api.listConnections,
     enabled: mode === "connection",
   });
+  const exportMutation = useMutation({ mutationFn: api.exportDemoDataset });
 
   return (
     <div className="stack">
@@ -48,6 +49,25 @@ export function DuckDbRunPanel({ model }: { model: ModelDetailOut }) {
 
       {mode === "upload" && (
         <input type="file" accept=".duckdb,.db" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      )}
+
+      {mode === "demo" && (
+        <div className="row">
+          <button onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
+            {exportMutation.isPending ? "Exporting…" : "Export demo dataset (.duckdb)"}
+          </button>
+          <span className="muted">
+            Downloads this dataset as a real file - upload it back above, or register it as a duckdb_file
+            connection.
+          </span>
+          {exportMutation.isError && (
+            <span className="error">
+              {exportMutation.error instanceof ApiError
+                ? JSON.stringify(exportMutation.error.detail)
+                : String(exportMutation.error)}
+            </span>
+          )}
+        </div>
       )}
 
       {mode === "connection" && (

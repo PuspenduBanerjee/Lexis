@@ -123,4 +123,23 @@ export const api = {
     request<ConnectionOut>(`/connections/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteConnection: (id: number) => request<void>(`/connections/${id}`, { method: "DELETE" }),
   testConnection: (id: number) => request<ConnectionTestOut>(`/connections/${id}/test`, { method: "POST" }),
+
+  // Not routed through `request()`: the response is a binary file, not JSON, and
+  // triggering a browser download is a side effect rather than data the caller uses.
+  exportDemoDataset: async (): Promise<void> => {
+    const res = await fetch("/api/demo-dataset/export", {
+      headers: { "X-User-Id": String(getCurrentUserId()) },
+    });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      throw new ApiError(res.status, detail?.detail ?? detail);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tpcds-demo.duckdb";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

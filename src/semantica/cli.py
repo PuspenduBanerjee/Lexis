@@ -45,3 +45,26 @@ def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[
         click.echo(f"Wrote {out}", err=True)
     else:
         click.echo(result.content)
+
+
+@main.command("export-demo-dataset")
+@click.option("--out", type=click.Path(dir_okay=False), required=True, help="Path to write the .duckdb file")
+@click.option("--force", is_flag=True, help="Overwrite --out if it already exists")
+def export_demo_dataset_cmd(out: str, force: bool) -> None:
+    """Write the bundled TPC-DS-shaped demo dataset - the same data the web UI's
+    "Demo dataset" run mode uses - to a real .duckdb file, so it can be re-uploaded
+    (Run tab's Upload mode) or registered as a duckdb_file connection."""
+    try:
+        from semantica.demo_data import export_demo_dataset
+    except ImportError as exc:
+        raise click.UsageError(
+            'exporting the demo dataset requires duckdb - install with `pip install "semantica[dev]"` '
+            'or `"semantica[api]"`'
+        ) from exc
+
+    try:
+        export_demo_dataset(out, overwrite=force)
+    except FileExistsError as exc:
+        raise click.UsageError(f"{exc} (pass --force to overwrite)")
+
+    click.echo(f"Wrote {out}", err=True)

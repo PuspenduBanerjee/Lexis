@@ -1,19 +1,29 @@
 """Live query execution of a model's metric+group-by/time-series, against the
 bundled demo dataset, an uploaded .duckdb file, or a persisted named Connection
-(duckdb_file or snowflake - see connection_runtime.py)."""
+(duckdb_file or snowflake - see connection_runtime.py). Also exposes a download of
+the demo dataset itself as a real .duckdb file (`demo_router`), so it can seed the
+Upload mode or a duckdb_file connection - the CLI's `export-demo-dataset` command is
+the same operation, see `semantica.demo_data.export_demo_dataset`."""
 
 import json
+import os
+import tempfile
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from semantica._vendor.osi import OSIDialect
+from semantica.demo_data import export_demo_dataset
 from semantica.parser import parse_osi_yaml
 from semantica.resolved_model import ResolvedModel
+from semantica_api.config import settings
 from semantica_api.connection_runtime import emitter_for_connection_type, get_connection_or_404, open_connection
 from semantica_api.db import get_db
-from semantica_api.deps import get_visible_model
+from semantica_api.deps import get_current_user, get_visible_model
 from semantica_api.duckdb_runtime import (
     build_tpcds_demo_connection,
     catalog_name_for_upload,
@@ -23,14 +33,35 @@ from semantica_api.duckdb_runtime import (
     run_timeseries_query,
     saved_upload,
 )
-from semantica_api.models import SemanticModelRecord
+from semantica_api.models import SemanticModelRecord, User
 from semantica_api.query_runtime import run_metric_query as run_metric_query_generic
 from semantica_api.query_runtime import run_timeseries_query as run_timeseries_query_generic
 from semantica_api.schemas import RunDuckDbOut
 
 router = APIRouter(prefix="/api/models", tags=["duckdb"])
+demo_router = APIRouter(prefix="/api/demo-dataset", tags=["duckdb"])
 
 RunMode = Literal["upload", "demo", "connection"]
+
+
+@demo_router.get("/export")
+def export_demo_dataset_endpoint(
+    user: User = Depends(get_current_user),  # noqa: ARG001 - requires a resolvable user
+) -> FileResponse:
+    """Download the bundled demo dataset as a real .duckdb file - the same data the
+    "Demo dataset" run mode uses in-memory, so it can be re-uploaded or registered as
+    a duckdb_file connection. Builds to a size-unbounded temp file (it's a small fixed
+    dataset, not user input) that's deleted once the response finishes streaming."""
+    fd, tmp_name = tempfile.mkstemp(dir=settings.upload_tmp_dir, suffix=".duckdb")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    export_demo_dataset(tmp_path, overwrite=True)  # mkstemp already created an empty file at tmp_path
+    return FileResponse(
+        tmp_path,
+        media_type="application/octet-stream",
+        filename="tpcds-demo.duckdb",
+        background=BackgroundTask(tmp_path.unlink, missing_ok=True),
+    )
 
 
 @router.post("/{model_id}/run", response_model=RunDuckDbOut)

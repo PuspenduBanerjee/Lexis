@@ -80,6 +80,7 @@ def handle_snowflake_error(request: Request, exc: snowflake.connector.errors.Err
 app.include_router(models.router)
 app.include_router(transpile.router)
 app.include_router(duckdb_run.router)
+app.include_router(duckdb_run.demo_router)
 app.include_router(graph.router)
 app.include_router(users.router)
 app.include_router(connections.router)

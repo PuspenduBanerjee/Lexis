@@ -38,6 +38,17 @@ semantica transpile tests/fixtures/tpcds_semantic_model.yaml \
 
 Add `--out <file>` to write to a file instead of stdout.
 
+The bundled TPC-DS-shaped demo dataset (the same data the web UI's "Demo dataset"
+run mode uses in-memory) can be exported to a real `.duckdb` file, handy as a seed
+file for the Upload run mode or a `duckdb_file` connection:
+
+```bash
+pip install -e ".[dev]"        # or ".[api]" - needs the optional duckdb dependency
+semantica export-demo-dataset --out demo.duckdb
+```
+
+Pass `--force` to overwrite an existing file at `--out`.
+
 ## Quickstart: Web UI
 
 Two servers: a FastAPI backend and a Vite/React frontend.
@@ -81,9 +92,12 @@ The canvas preserves anything it has no control for (`ai_context`, `custom_exten
 non-ANSI_SQL dialect expressions, metrics themselves) by merging onto the existing
 parsed model rather than regenerating YAML from scratch; see
 `src/semantica_api/graph_edit.py`. "Run DuckDB" executes the generated SQL for real,
-either against a bundled TPC-DS demo dataset or an uploaded `.duckdb`/`.db` file — pick
+against a bundled TPC-DS demo dataset, an uploaded `.duckdb`/`.db` file, or a saved
+connection (see "Connecting to Snowflake or an external DuckDB file" below) — pick
 "Time series" there for the full drill-down/roll-up view (with metric, time-field, and
-starting-grain pickers), or "Metric query" for the original metric+group-by mode.
+starting-grain pickers), or "Metric query" for the original metric+group-by mode. In
+"Demo dataset" mode, an "Export demo dataset (.duckdb)" button downloads that same
+data as a real file - the CLI equivalent of `semantica export-demo-dataset` above.
 
 ## Quickstart: Docker
 
@@ -198,8 +212,9 @@ OSI model) - the file is attached under that name, mirroring how the demo/upload
 modes work. Snowflake has no such restriction: `source` is used as-is, so it can
 reference any `database.schema.table` the connection's role can see.
 
-There's no UI for managing connections yet (API only) - see
-`src/semantica_api/routers/connections.py`.
+The web UI's **Connections** page (linked from the header) covers all of the above
+graphically - create/edit/delete/test a connection, with the same RBAC - and the
+model "Run" tab's "Saved connection" mode lets you pick one to run against.
 
 ## Running tests
 

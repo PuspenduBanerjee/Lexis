@@ -1,0 +1,141 @@
+# Semantica
+
+An open, [OSI](https://github.com/open-semantic-interchange/OSI)-native semantic layer:
+author a data model once in OSI YAML, then transpile it to warehouse-native SQL
+(Snowflake, BigQuery, Databricks, DuckDB, Postgres) and to formats BI/AI consumers
+understand (Cube.js schema, dbt-core OSI documents, MCP tool manifests grounded in
+`ai_context`).
+
+Two ways to use it: a `semantica` CLI/library, and a web UI (FastAPI + React) with a
+persisted multi-model workspace, role-based access, and live DuckDB query execution.
+
+See [docs/architecture-plan.md](docs/architecture-plan.md) for the full architecture
+writeup and design rationale.
+
+## Quickstart: CLI
+
+Requires Python 3.11+.
+
+```bash
+pip install -e .
+semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target duckdb --metric total_sales
+```
+
+```sql
+SELECT SUM(store_sales.ss_ext_sales_price) AS "total_sales"
+FROM tpcds.public.store_sales AS "store_sales"
+```
+
+Other targets: `postgres`, `bigquery`, `databricks`, `snowflake` (all take `--metric`,
+and an optional repeatable `--group-by dataset.field`), plus `cube`, `dbt`, and `mcp`
+(whole-model outputs, no `--metric` needed):
+
+```bash
+semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target mcp
+semantica transpile tests/fixtures/tpcds_semantic_model.yaml \
+  --target duckdb --metric customer_lifetime_value --group-by item.i_category
+```
+
+Add `--out <file>` to write to a file instead of stdout.
+
+## Quickstart: Web UI
+
+Two servers: a FastAPI backend and a Vite/React frontend.
+
+**Backend** (from the repo root):
+
+```bash
+pip install -e ".[dev,api]"
+alembic upgrade head        # creates semantica_dev.db and its schema
+uvicorn semantica_api.main:app --reload --port 8000
+```
+
+Startup automatically seeds 3 demo users (`admin`, `editor1`, `viewer1` — ids 1/2/3,
+roles Admin/Editor/Viewer). There's no login screen yet: requests are attributed to a
+user via an `X-User-Id` header (defaults to `1`/admin if omitted) — a deliberate stub,
+see [docs/architecture-plan.md](docs/architecture-plan.md) for why and what a real
+auth swap-in looks like.
+
+**Frontend** (in a second terminal):
+
+```bash
+cd frontend
+npm install
+npm run dev                 # http://localhost:5173, proxies /api -> :8000
+```
+
+Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
+role, paste an OSI YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
+create a model, then use the **Browse** / **Design** / **Transpile** / **Run DuckDB**
+tabs on the model's page (a sample model is preloaded automatically on first run, so
+there's already something to open). "Design" is a node-graph canvas (owner/admin only)
+for visually adding/editing datasets, fields, and relationships — drag between the
+dots on a dataset box to draw a relationship. Metrics appear as their own read-only
+node, connected by dashed edges to every dataset their expression references (a
+"Show metrics" toggle hides them); click one for its description/expression/
+references, but creating or editing a metric still requires the YAML sub-view. A
+metric's panel also shows a live **time-series preview** (against the demo dataset)
+when the model has any field marked `dimension.is_time: true` — click a row to drill
+into the next finer grain (year → quarter → month → day), or "Roll up" to go back.
+The canvas preserves anything it has no control for (`ai_context`, `custom_extensions`,
+non-ANSI_SQL dialect expressions, metrics themselves) by merging onto the existing
+parsed model rather than regenerating YAML from scratch; see
+`src/semantica_api/graph_edit.py`. "Run DuckDB" executes the generated SQL for real,
+either against a bundled TPC-DS demo dataset or an uploaded `.duckdb`/`.db` file — pick
+"Time series" there for the full drill-down/roll-up view (with metric, time-field, and
+starting-grain pickers), or "Metric query" for the original metric+group-by mode.
+
+## Quickstart: Docker
+
+Two images: `semantica-api` (FastAPI backend, migrations run automatically on
+container start) and `semantica-web` (the built SPA served by nginx, which also
+reverse-proxies `/api/*` to the backend - same same-origin-`/api` pattern the Vite
+dev proxy uses, just in production).
+
+```bash
+docker compose up -d --build
+```
+
+Open `http://localhost:8080`. The SQLite database lives on a named volume
+(`semantica-data`, mounted at `/data` in the API container), so it survives
+`docker compose down`/`up` and container restarts - only `docker compose down -v`
+removes it. Override `SEMANTICA_CORS_ORIGINS`/`SEMANTICA_MAX_DUCKDB_UPLOAD_MB`/etc.
+(see `src/semantica_api/config.py`) via `environment:` in `docker-compose.yml` if
+needed; if you raise the upload cap, also raise nginx's `client_max_body_size` in
+`docker/nginx.conf` to match.
+
+To build the images without compose (e.g. for pushing to a registry):
+
+```bash
+./scripts/docker-build.sh [tag]   # defaults to "latest"; builds semantica-api and semantica-web
+```
+
+Both containers currently run as root and there's no HTTPS/reverse-auth in front of
+them - fine for local/trusted-network use, but harden before exposing publicly.
+
+## Running tests
+
+```bash
+pip install -e ".[dev]"       # core library + CLI tests only
+pytest tests --ignore=tests/api
+
+pip install -e ".[dev,api]"   # everything, including the API test suite
+pytest
+```
+
+## Project structure
+
+```text
+src/semantica/          core library: OSI parsing, join-graph resolution, transpilers, CLI
+src/semantica_api/      FastAPI backend (models, RBAC, transpile route, live DuckDB execution)
+frontend/                Vite + React + TypeScript SPA
+tests/                  core library tests (fixtures under tests/fixtures/)
+tests/api/              backend API tests
+docs/architecture-plan.md   architecture decisions and design rationale
+docker/                 Dockerfiles + nginx config for the two images (see docker-compose.yml)
+scripts/docker-build.sh   builds both images directly with `docker build`, no compose needed
+```
+
+## License
+
+Apache 2.0 - see [LICENSE](LICENSE) and [NOTICE](NOTICE).

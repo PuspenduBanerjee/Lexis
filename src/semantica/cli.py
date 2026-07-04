@@ -4,14 +4,10 @@ from pathlib import Path
 
 import click
 
+from semantica.dispatch import TARGETS
+from semantica.dispatch import transpile as dispatch_transpile
 from semantica.parser import load_osi_document
 from semantica.resolved_model import ResolvedModel
-from semantica.transpilers.cube import emit_cube_yaml
-from semantica.transpilers.dbt_osi import emit_dbt_osi_document
-from semantica.transpilers.mcp import emit_mcp_tool_manifest
-from semantica.transpilers.sql import EMITTERS as SQL_EMITTERS
-
-TARGETS = [*SQL_EMITTERS.keys(), "cube", "dbt", "mcp"]
 
 
 @click.group()
@@ -36,25 +32,16 @@ def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[
     semantic_model = document.semantic_model[0]
     model = ResolvedModel.build(semantic_model)
 
-    if target in SQL_EMITTERS:
-        if not metric:
-            raise click.UsageError(f"--metric is required for target {target!r}")
-        emitter = SQL_EMITTERS[target]()
-        content = emitter.emit_metric_query(model, metric, group_by=list(group_by) or None)
-    elif target == "cube":
-        content = emit_cube_yaml(model)
-    elif target == "dbt":
-        result = emit_dbt_osi_document(document)
-        for warning in result.warnings:
-            click.echo(f"warning: {warning}", err=True)
-        content = result.artifact.content
-    elif target == "mcp":
-        content = emit_mcp_tool_manifest(model)
-    else:  # pragma: no cover - guarded by click.Choice
-        raise click.UsageError(f"Unknown target {target!r}")
+    try:
+        result = dispatch_transpile(document, model, target, metric, list(group_by) or None)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
+
+    for warning in result.warnings:
+        click.echo(f"warning: {warning}", err=True)
 
     if out:
-        Path(out).write_text(content)
+        Path(out).write_text(result.content)
         click.echo(f"Wrote {out}", err=True)
     else:
-        click.echo(content)
+        click.echo(result.content)

@@ -30,6 +30,59 @@ def test_snowflake_falls_back_to_ansi_sql_expression(tpcds_model):
     assert "SUM(store_sales.ss_ext_sales_price)" in sql
 
 
+def test_timeseries_query_groups_by_date_trunc(tpcds_model):
+    sql = DuckDBEmitter().emit_timeseries_query(
+        tpcds_model, "total_sales", "date_dim", "d_date", "quarter"
+    )
+    assert 'SELECT DATE_TRUNC(\'quarter\', "date_dim".d_date) AS "period"' in sql
+    assert "JOIN" in sql  # store_sales -> date_dim
+    assert "WHERE" not in sql
+    assert "GROUP BY 1" in sql
+    assert "ORDER BY 1" in sql
+
+
+def test_timeseries_query_with_drill_down_filter(tpcds_model):
+    sql = DuckDBEmitter().emit_timeseries_query(
+        tpcds_model, "total_sales", "date_dim", "d_date", "month",
+        filter_grain="quarter", filter_value="2024-01-01",
+    )
+    assert "WHERE DATE_TRUNC('quarter', \"date_dim\".d_date) = DATE '2024-01-01'" in sql
+
+
+def test_timeseries_query_rejects_unsupported_grain(tpcds_model):
+    with pytest.raises(ValueError, match="Unsupported time grain"):
+        DuckDBEmitter().emit_timeseries_query(tpcds_model, "total_sales", "date_dim", "d_date", "century")
+
+
+def test_timeseries_query_rejects_malformed_filter_value(tpcds_model):
+    with pytest.raises(ValueError, match="ISO date"):
+        DuckDBEmitter().emit_timeseries_query(
+            tpcds_model, "total_sales", "date_dim", "d_date", "month",
+            filter_grain="quarter", filter_value="not-a-date",
+        )
+
+
+def test_timeseries_sql_actually_runs_and_rolls_up_by_year(tpcds_model):
+    con = duckdb.connect()
+    con.execute("CREATE SCHEMA tpcds")
+    con.execute(
+        "CREATE TABLE tpcds.store_sales (ss_sold_date_sk INT, ss_ext_sales_price DOUBLE, ss_net_profit DOUBLE)"
+    )
+    con.execute("CREATE TABLE tpcds.date_dim (d_date_sk INT, d_date DATE)")
+    con.execute(
+        "INSERT INTO tpcds.store_sales VALUES (1,50.0,5.0),(2,30.0,3.0),(3,20.0,2.0)"
+    )
+    con.execute(
+        "INSERT INTO tpcds.date_dim VALUES (1,DATE '2023-03-01'),(2,DATE '2023-11-01'),(3,DATE '2024-06-01')"
+    )
+
+    sql = DuckDBEmitter().emit_timeseries_query(tpcds_model, "total_sales", "date_dim", "d_date", "year")
+    sql = sql.replace("tpcds.public.", "tpcds.")
+
+    rows = {r[0].isoformat()[:10]: r[1] for r in con.execute(sql).fetchall()}
+    assert rows == pytest.approx({"2023-01-01": 80.0, "2024-01-01": 20.0})
+
+
 def test_emitted_sql_actually_runs_against_duckdb_and_is_correct(tpcds_model):
     con = duckdb.connect()
     con.execute("CREATE SCHEMA tpcds")

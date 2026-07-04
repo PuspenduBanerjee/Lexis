@@ -1,0 +1,72 @@
+"""FastAPI app: CORS, exception handlers, router registration, startup seed."""
+
+from contextlib import asynccontextmanager
+
+import duckdb
+import yaml
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+
+from semantica_api.config import settings
+from semantica_api.db import Base, SessionLocal, engine
+from semantica_api.routers import duckdb_run, graph, models, transpile, users
+from semantica_api.seed import seed_default_users, seed_sample_model
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_default_users(db)
+        seed_sample_model(db)
+    finally:
+        db.close()
+    yield
+
+
+app = FastAPI(title="Semantica API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(ValidationError)
+def handle_osi_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(yaml.YAMLError)
+def handle_yaml_syntax_error(request: Request, exc: yaml.YAMLError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": f"invalid YAML: {exc}"})
+
+
+@app.exception_handler(ValueError)
+def handle_library_value_error(request: Request, exc: ValueError) -> JSONResponse:
+    # Covers semantica.resolved_model.UnresolvedJoinError/MissingExpressionError
+    # (both subclass ValueError) and plain ValueError from the emitters/dispatch.
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@app.exception_handler(duckdb.Error)
+def handle_duckdb_error(request: Request, exc: duckdb.Error) -> JSONResponse:
+    # An uploaded .duckdb file that doesn't actually match the model's declared
+    # dataset sources (wrong schema/table names) raises here - a 400, not a 500,
+    # since it's a bad-input condition (mismatched file), not a server fault.
+    return JSONResponse(
+        status_code=400,
+        content={"detail": f"query failed against the provided database: {exc}"},
+    )
+
+
+app.include_router(models.router)
+app.include_router(transpile.router)
+app.include_router(duckdb_run.router)
+app.include_router(graph.router)
+app.include_router(users.router)

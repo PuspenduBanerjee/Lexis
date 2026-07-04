@@ -1,0 +1,29 @@
+import type { ModelDetailOut } from "../api/types";
+
+export type TimeGrain = "year" | "quarter" | "month" | "day";
+
+/** Coarsest first - mirrors `SqlDialectEmitter.TIME_GRAINS` in the backend. */
+export const TIME_GRAINS: TimeGrain[] = ["year", "quarter", "month", "day"];
+
+export function finerGrain(grain: TimeGrain): TimeGrain | null {
+  const i = TIME_GRAINS.indexOf(grain);
+  return i < TIME_GRAINS.length - 1 ? TIME_GRAINS[i + 1] : null;
+}
+
+export function coarserGrain(grain: TimeGrain): TimeGrain | null {
+  const i = TIME_GRAINS.indexOf(grain);
+  return i > 0 ? TIME_GRAINS[i - 1] : null;
+}
+
+export interface TimeFieldRef {
+  dataset: string;
+  field: string;
+}
+
+/** Every field marked `is_time` across a model's datasets - candidates for the
+ * time-series drill/roll dimension. */
+export function timeFields(model: ModelDetailOut): TimeFieldRef[] {
+  return model.datasets.flatMap((d) =>
+    d.fields.filter((f) => f.is_time).map((f) => ({ dataset: d.name, field: f.name })),
+  );
+}

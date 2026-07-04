@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import { UserProvider } from "./state/UserContext";
 import { UserSwitcher } from "./components/UserSwitcher";
 import { ModelListPage } from "./pages/ModelListPage";
 import { ModelDetailPage } from "./pages/ModelDetailPage";
+import { ConnectionsPage } from "./pages/ConnectionsPage";
 
 const queryClient = new QueryClient();
 
@@ -13,13 +14,20 @@ export default function App() {
       <UserProvider>
         <BrowserRouter>
           <header className="app-header">
-            <h1>Semantica</h1>
+            <div className="row">
+              <h1>Semantica</h1>
+              <nav className="row">
+                <Link to="/">Models</Link>
+                <Link to="/connections">Connections</Link>
+              </nav>
+            </div>
             <UserSwitcher />
           </header>
           <main className="app-main">
             <Routes>
               <Route path="/" element={<ModelListPage />} />
               <Route path="/models/:id" element={<ModelDetailPage />} />
+              <Route path="/connections" element={<ConnectionsPage />} />
             </Routes>
           </main>
         </BrowserRouter>

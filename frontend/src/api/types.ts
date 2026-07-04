@@ -119,3 +119,27 @@ export interface GraphEditIn {
   datasets: GraphDatasetIn[];
   relationships: GraphRelationshipIn[];
 }
+
+export type ConnectionType = "duckdb_file" | "snowflake";
+
+export interface ConnectionOut {
+  id: number;
+  name: string;
+  type: ConnectionType;
+  owner_id: number;
+  owner_username: string;
+  config: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectionIn {
+  name: string;
+  type: ConnectionType;
+  config: Record<string, string>;
+}
+
+export interface ConnectionTestOut {
+  ok: boolean;
+  detail: string;
+}

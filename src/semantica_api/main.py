@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 import duckdb
+import snowflake.connector
 import yaml
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,7 @@ from pydantic import ValidationError
 
 from semantica_api.config import settings
 from semantica_api.db import Base, SessionLocal, engine
-from semantica_api.routers import duckdb_run, graph, models, transpile, users
+from semantica_api.routers import connections, duckdb_run, graph, models, transpile, users
 from semantica_api.seed import seed_default_users, seed_sample_model
 
 
@@ -65,8 +66,20 @@ def handle_duckdb_error(request: Request, exc: duckdb.Error) -> JSONResponse:
     )
 
 
+@app.exception_handler(snowflake.connector.errors.Error)
+def handle_snowflake_error(request: Request, exc: snowflake.connector.errors.Error) -> JSONResponse:
+    # Covers query-execution failures (e.g. the model's `source` doesn't match a
+    # real table in the connected Snowflake account) that aren't already caught
+    # and wrapped at connect time by connection_runtime.open_snowflake_connection.
+    return JSONResponse(
+        status_code=400,
+        content={"detail": f"query failed against Snowflake: {exc}"},
+    )
+
+
 app.include_router(models.router)
 app.include_router(transpile.router)
 app.include_router(duckdb_run.router)
 app.include_router(graph.router)
 app.include_router(users.router)
+app.include_router(connections.router)

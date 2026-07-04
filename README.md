@@ -113,6 +113,94 @@ To build the images without compose (e.g. for pushing to a registry):
 Both containers currently run as root and there's no HTTPS/reverse-auth in front of
 them - fine for local/trusted-network use, but harden before exposing publicly.
 
+## Connecting to Snowflake or an external DuckDB file
+
+Beyond the demo dataset and one-off `.duckdb`/`.db` uploads, you can register a
+named, reusable **connection** and point any model's "Run" at it instead. Two
+types are supported: `duckdb_file` (a DuckDB database file already sitting on the
+API server's filesystem) and `snowflake`.
+
+Any authenticated user can view/test/run against any connection (same
+workspace-wide visibility as models); creating, updating, or deleting one
+requires the Editor or Admin role, and only the connection's owner (or an Admin)
+can update/delete it. Requests are attributed via the `X-User-Id` header, same as
+everywhere else in the API (see Quickstart: Web UI above).
+
+**Create a DuckDB-file connection:**
+
+```bash
+curl -X POST http://localhost:8000/api/connections \
+  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -d '{
+        "name": "local-warehouse",
+        "type": "duckdb_file",
+        "config": {"path": "/data/warehouse.duckdb"}
+      }'
+```
+
+`path` is resolved on the **API server** (or, in Docker, inside the
+`semantica-api` container) - it's not a client-side file picker. If you're
+running via `docker compose`, mount the directory containing the file into the
+container (alongside the existing `semantica-data` volume in
+`docker-compose.yml`) so the path is reachable there.
+
+**Create a Snowflake connection:**
+
+```bash
+curl -X POST http://localhost:8000/api/connections \
+  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -d '{
+        "name": "prod-snowflake",
+        "type": "snowflake",
+        "config": {
+          "account": "xy12345.us-east-1",
+          "user": "SEMANTICA_SVC",
+          "password_env": "SNOWFLAKE_PASSWORD",
+          "warehouse": "COMPUTE_WH",
+          "database": "ANALYTICS",
+          "schema": "PUBLIC",
+          "role": "ANALYST"
+        }
+      }'
+```
+
+`account`/`user`/`password_env` are required; `warehouse`/`database`/`schema`/
+`role` are optional. Secrets are never stored in the database: `password_env` is
+the *name* of an environment variable, and the API process reads the actual
+password from its own environment (`export SNOWFLAKE_PASSWORD=...`, or an
+`environment:` entry in `docker-compose.yml`) at connect time - so that variable
+must be set wherever the API process runs, not passed in the request body.
+
+**Test connectivity** (opens a real connection, no query run):
+
+```bash
+curl -X POST http://localhost:8000/api/connections/1/test -H "X-User-Id: 2"
+# {"ok": true, "detail": "connected successfully"}
+```
+
+**Run a model's metric against a connection** (`connection_id` is the id from
+the create response above; same `/run` endpoint used for demo/upload, with
+`mode=connection`):
+
+```bash
+curl -X POST http://localhost:8000/api/models/1/run \
+  -H "X-User-Id: 2" \
+  -F "mode=connection" -F "connection_id=1" \
+  -F "metric=total_sales" -F 'group_by_json=["item.i_category"]'
+```
+
+The time-series endpoint (`/api/models/{id}/run/timeseries`) takes the same
+`mode=connection`/`connection_id` fields alongside its usual `time_dataset`/
+`time_field`/`grain`/`filter_grain`/`filter_value` form fields. For a
+`duckdb_file` connection, every dataset referenced by the metric/group-by must
+share one catalog name (the first `.`-segment of the dataset's `source` in the
+OSI model) - the file is attached under that name, mirroring how the demo/upload
+modes work. Snowflake has no such restriction: `source` is used as-is, so it can
+reference any `database.schema.table` the connection's role can see.
+
+There's no UI for managing connections yet (API only) - see
+`src/semantica_api/routers/connections.py`.
+
 ## Running tests
 
 ```bash
@@ -127,7 +215,8 @@ pytest
 
 ```text
 src/semantica/          core library: OSI parsing, join-graph resolution, transpilers, CLI
-src/semantica_api/      FastAPI backend (models, RBAC, transpile route, live DuckDB execution)
+src/semantica_api/      FastAPI backend (models, RBAC, transpile route, live query execution
+                        against demo/upload DuckDB or a persisted connections.py connection)
 frontend/                Vite + React + TypeScript SPA
 tests/                  core library tests (fixtures under tests/fixtures/)
 tests/api/              backend API tests

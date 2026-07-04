@@ -1,4 +1,7 @@
 import type {
+  ConnectionIn,
+  ConnectionOut,
+  ConnectionTestOut,
   CreateModelIn,
   GraphEditIn,
   ModelDetailOut,
@@ -69,20 +72,27 @@ export const api = {
 
   runDuckDb: (
     id: number,
-    args: { mode: "upload" | "demo"; metric: string; groupBy: string[]; file?: File },
+    args: {
+      mode: "upload" | "demo" | "connection";
+      metric: string;
+      groupBy: string[];
+      file?: File;
+      connectionId?: number;
+    },
   ) => {
     const form = new FormData();
     form.set("mode", args.mode);
     form.set("metric", args.metric);
     form.set("group_by_json", JSON.stringify(args.groupBy));
     if (args.file) form.set("file", args.file);
+    if (args.connectionId != null) form.set("connection_id", String(args.connectionId));
     return request<RunDuckDbOut>(`/models/${id}/run`, { method: "POST", body: form });
   },
 
   runTimeSeries: (
     id: number,
     args: {
-      mode: "upload" | "demo";
+      mode: "upload" | "demo" | "connection";
       metric: string;
       timeDataset: string;
       timeField: string;
@@ -90,6 +100,7 @@ export const api = {
       filterGrain?: string;
       filterValue?: string;
       file?: File;
+      connectionId?: number;
     },
   ) => {
     const form = new FormData();
@@ -101,6 +112,15 @@ export const api = {
     if (args.filterGrain) form.set("filter_grain", args.filterGrain);
     if (args.filterValue) form.set("filter_value", args.filterValue);
     if (args.file) form.set("file", args.file);
+    if (args.connectionId != null) form.set("connection_id", String(args.connectionId));
     return request<RunDuckDbOut>(`/models/${id}/run/timeseries`, { method: "POST", body: form });
   },
+
+  listConnections: () => request<ConnectionOut[]>("/connections"),
+  createConnection: (body: ConnectionIn) =>
+    request<ConnectionOut>("/connections", { method: "POST", body: JSON.stringify(body) }),
+  updateConnection: (id: number, body: ConnectionIn) =>
+    request<ConnectionOut>(`/connections/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteConnection: (id: number) => request<void>(`/connections/${id}`, { method: "DELETE" }),
+  testConnection: (id: number) => request<ConnectionTestOut>(`/connections/${id}/test`, { method: "POST" }),
 };

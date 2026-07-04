@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from semantica_api.config import settings
 from semantica_api.db import get_db
-from semantica_api.models import Role, SemanticModelRecord, User
+from semantica_api.models import Connection, Role, SemanticModelRecord, User
 
 
 def get_current_user(
@@ -58,4 +58,30 @@ def get_visible_model(
     record = db.get(SemanticModelRecord, model_id)
     if record is None:
         raise HTTPException(status_code=404, detail="model not found")
+    return record
+
+
+def get_owned_or_admin_connection(
+    connection_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Connection:
+    record = db.get(Connection, connection_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="connection not found")
+    if user.role != Role.ADMIN and record.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="not the owner of this connection")
+    return record
+
+
+def get_visible_connection(
+    connection_id: int,
+    user: User = Depends(get_current_user),  # noqa: ARG001 - enforces a resolvable user
+    db: Session = Depends(get_db),
+) -> Connection:
+    """Any authenticated user can view/run against any connection (same
+    workspace-wide visibility as models - no sharing/ACL system)."""
+    record = db.get(Connection, connection_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="connection not found")
     return record

@@ -12,13 +12,15 @@ from pydantic import BaseModel
 
 from semantica._vendor.osi import OSIDataset, OSIDialect, OSIMetric, OSIRelationship
 from semantica.resolved_model import MissingExpressionError, ResolvedModel
-from semantica_api.models import SemanticModelRecord
+from semantica_api.models import Connection, SemanticModelRecord
 
 TARGET = Literal[
     "duckdb", "postgres", "bigquery", "databricks", "snowflake", "cube", "dbt", "mcp"
 ]
 
 TIME_GRAIN = Literal["year", "quarter", "month", "day"]
+
+CONNECTION_TYPE = Literal["duckdb_file", "snowflake"]
 
 
 class UserOut(BaseModel):
@@ -128,6 +130,51 @@ class GraphEditIn(BaseModel):
 
     datasets: list[GraphDatasetIn]
     relationships: list[GraphRelationshipIn] = []
+
+
+class ConnectionIn(BaseModel):
+    """`config` shape depends on `type` - validated in
+    `connection_runtime.validate_connection_config` rather than as a pydantic
+    discriminated union, since it's just two flat shapes:
+
+    - duckdb_file: `{"path": "<server-side filesystem path>"}`
+    - snowflake: `{"account", "user", "password_env", "warehouse"?, "database"?,
+      "schema"?, "role"?}` - `password_env` is the *name* of an environment variable
+      the API process reads at connect time; the real secret is never stored here.
+    """
+
+    name: str
+    type: CONNECTION_TYPE
+    config: dict[str, Any]
+
+
+class ConnectionOut(BaseModel):
+    id: int
+    name: str
+    type: CONNECTION_TYPE
+    owner_id: int
+    owner_username: str
+    config: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConnectionTestOut(BaseModel):
+    ok: bool
+    detail: str
+
+
+def to_connection_out(conn: Connection) -> ConnectionOut:
+    return ConnectionOut(
+        id=conn.id,
+        name=conn.name,
+        type=conn.type.value,
+        owner_id=conn.owner_id,
+        owner_username=conn.owner.username,
+        config=conn.config,
+        created_at=conn.created_at,
+        updated_at=conn.updated_at,
+    )
 
 
 def _expression_text(model: ResolvedModel, expressed) -> str | None:

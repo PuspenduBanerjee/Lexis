@@ -22,7 +22,6 @@ import re
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime
 from pathlib import Path
 
 import duckdb
@@ -31,6 +30,8 @@ from fastapi import HTTPException, UploadFile
 from semantica.resolved_model import ResolvedModel
 from semantica.transpilers.sql import DuckDBEmitter
 from semantica_api.config import settings
+from semantica_api.query_runtime import run_metric_query as _run_metric_query
+from semantica_api.query_runtime import run_timeseries_query as _run_timeseries_query
 
 _TPCDS_DEMO_SOURCES = {
     "tpcds.public.store_sales",
@@ -152,31 +153,16 @@ def open_uploaded_database(path: Path, catalog_name: str) -> Iterator[duckdb.Duc
         con.close()
 
 
-def _json_safe(value):
-    """`date`/`datetime` cells (e.g. a `DATE_TRUNC` period column) aren't natively
-    JSON-serializable inside the `rows: list[list[Any]]` response - stringify them
-    explicitly here rather than relying on FastAPI's encoder to reach into `Any`."""
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    return value
-
-
 def run_metric_query(
     con: duckdb.DuckDBPyConnection,
     model: ResolvedModel,
     metric: str,
     group_by: list[str] | None,
 ) -> dict:
-    sql = DuckDBEmitter().emit_metric_query(model, metric, group_by=group_by)
-    cursor = con.execute(sql)
-    columns = [d[0] for d in cursor.description]
-    rows = cursor.fetchmany(settings.max_result_rows)
-    return {
-        "columns": columns,
-        "rows": [[_json_safe(v) for v in r] for r in rows],
-        "row_count": len(rows),
-        "sql": sql,
-    }
+    """Thin DuckDB-flavored wrapper over the driver-agnostic
+    `query_runtime.run_metric_query` - kept so demo/upload call sites don't need to
+    know or care about emitter selection (always DuckDB here)."""
+    return _run_metric_query(con, DuckDBEmitter(), model, metric, group_by)
 
 
 def run_timeseries_query(
@@ -189,16 +175,6 @@ def run_timeseries_query(
     filter_grain: str | None,
     filter_value: str | None,
 ) -> dict:
-    sql = DuckDBEmitter().emit_timeseries_query(
-        model, metric, time_dataset, time_field, grain,
-        filter_grain=filter_grain, filter_value=filter_value,
+    return _run_timeseries_query(
+        con, DuckDBEmitter(), model, metric, time_dataset, time_field, grain, filter_grain, filter_value
     )
-    cursor = con.execute(sql)
-    columns = [d[0] for d in cursor.description]
-    rows = cursor.fetchmany(settings.max_result_rows)
-    return {
-        "columns": columns,
-        "rows": [[_json_safe(v) for v in r] for r in rows],
-        "row_count": len(rows),
-        "sql": sql,
-    }

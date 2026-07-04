@@ -1,12 +1,13 @@
 """Apply structured graph-canvas edits onto an existing parsed OSIDocument.
 
-The canvas only exposes a subset of what OSI datasets/fields/relationships can carry
-(name, source, ANSI_SQL expression, description). Anything else an existing entity
-has - ai_context, custom_extensions, primary_key/unique_keys, non-ANSI_SQL dialect
-expressions - must survive a save untouched. So this merges the incoming structured
-edit onto the existing parsed pydantic objects (matching by name) rather than
-rebuilding OSIDataset/OSIField/OSIRelationship from scratch, and re-serializes via the
-existing OSIDocument.to_osi_yaml() - no separate YAML generation logic.
+The canvas only exposes a subset of what OSI datasets/fields/relationships/metrics
+can carry (name, source, ANSI_SQL expression, description). Anything else an existing
+entity has - ai_context, custom_extensions, primary_key/unique_keys, non-ANSI_SQL
+dialect expressions - must survive a save untouched. So this merges the incoming
+structured edit onto the existing parsed pydantic objects (matching by name) rather
+than rebuilding OSIDataset/OSIField/OSIRelationship/OSIMetric from scratch, and
+re-serializes via the existing OSIDocument.to_osi_yaml() - no separate YAML
+generation logic.
 """
 
 from semantica._vendor.osi import (
@@ -16,9 +17,16 @@ from semantica._vendor.osi import (
     OSIDocument,
     OSIExpression,
     OSIField,
+    OSIMetric,
     OSIRelationship,
 )
-from semantica_api.schemas import GraphDatasetIn, GraphEditIn, GraphFieldIn, GraphRelationshipIn
+from semantica_api.schemas import (
+    GraphDatasetIn,
+    GraphEditIn,
+    GraphFieldIn,
+    GraphMetricIn,
+    GraphRelationshipIn,
+)
 
 
 def _merge_field(existing: OSIField | None, field_in: GraphFieldIn) -> OSIField:
@@ -39,6 +47,18 @@ def _merge_dataset(existing: OSIDataset | None, dataset_in: GraphDatasetIn) -> O
     if existing is not None:
         return existing.model_copy(update={"source": dataset_in.source, "fields": fields})
     return OSIDataset(name=dataset_in.name, source=dataset_in.source, fields=fields)
+
+
+def _merge_metric(existing: OSIMetric | None, metric_in: GraphMetricIn) -> OSIMetric:
+    other_dialects = (
+        [d for d in existing.expression.dialects if d.dialect != OSIDialect.ANSI_SQL] if existing else []
+    )
+    expression = OSIExpression(
+        dialects=[OSIDialectExpression(dialect=OSIDialect.ANSI_SQL, expression=metric_in.expression), *other_dialects]
+    )
+    if existing is not None:
+        return existing.model_copy(update={"expression": expression, "description": metric_in.description})
+    return OSIMetric(name=metric_in.name, expression=expression, description=metric_in.description)
 
 
 def _merge_relationship(existing: OSIRelationship | None, rel_in: GraphRelationshipIn) -> OSIRelationship:
@@ -62,13 +82,14 @@ def _check_unique(names: list[str], kind: str) -> None:
 
 
 def apply_graph_edit(document: OSIDocument, edit: GraphEditIn) -> OSIDocument:
-    """Return a new OSIDocument with datasets/relationships replaced by `edit`."""
+    """Return a new OSIDocument with datasets/relationships/metrics replaced by `edit`."""
     semantic_model = document.semantic_model[0]
 
     _check_unique([d.name for d in edit.datasets], "dataset")
     for dataset_in in edit.datasets:
         _check_unique([f.name for f in dataset_in.fields], f"field (in dataset {dataset_in.name!r})")
     _check_unique([r.name for r in edit.relationships], "relationship")
+    _check_unique([m.name for m in edit.metrics], "metric")
 
     dataset_names = {d.name for d in edit.datasets}
     for rel in edit.relationships:
@@ -83,5 +104,10 @@ def apply_graph_edit(document: OSIDocument, edit: GraphEditIn) -> OSIDocument:
     existing_relationships = {r.name: r for r in (semantic_model.relationships or [])}
     new_relationships = [_merge_relationship(existing_relationships.get(r.name), r) for r in edit.relationships]
 
-    updated_model = semantic_model.model_copy(update={"datasets": new_datasets, "relationships": new_relationships})
+    existing_metrics = {m.name: m for m in (semantic_model.metrics or [])}
+    new_metrics = [_merge_metric(existing_metrics.get(m.name), m) for m in edit.metrics]
+
+    updated_model = semantic_model.model_copy(
+        update={"datasets": new_datasets, "relationships": new_relationships, "metrics": new_metrics}
+    )
     return document.model_copy(update={"semantic_model": [updated_model]})

@@ -115,9 +115,16 @@ export interface GraphRelationshipIn {
   to_columns: string[];
 }
 
+export interface GraphMetricIn {
+  name: string;
+  expression: string;
+  description?: string | null;
+}
+
 export interface GraphEditIn {
   datasets: GraphDatasetIn[];
   relationships: GraphRelationshipIn[];
+  metrics: GraphMetricIn[];
 }
 
 export type ConnectionType = "duckdb_file" | "snowflake";

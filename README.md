@@ -81,15 +81,17 @@ create a model, then use the **Browse** / **Design** / **Transpile** / **Run Duc
 tabs on the model's page (a sample model is preloaded automatically on first run, so
 there's already something to open). "Design" is a node-graph canvas (owner/admin only)
 for visually adding/editing datasets, fields, and relationships — drag between the
-dots on a dataset box to draw a relationship. Metrics appear as their own read-only
-node, connected by dashed edges to every dataset their expression references (a
-"Show metrics" toggle hides them); click one for its description/expression/
-references, but creating or editing a metric still requires the YAML sub-view. A
-metric's panel also shows a live **time-series preview** (against the demo dataset)
-when the model has any field marked `dimension.is_time: true` — click a row to drill
-into the next finer grain (year → quarter → month → day), or "Roll up" to go back.
+dots on a dataset box to draw a relationship. Metrics appear as their own node,
+connected by dashed edges to every dataset their expression references (a "Show
+metrics" toggle hides them); "+ Add metric" creates one, and clicking a metric opens
+a panel to edit its expression/description or delete it (name is fixed after
+creation, like a dataset's) — owner/admin only, same as the rest of the Design tab. A
+metric's panel also shows a live **time-series preview** (against the demo dataset,
+reflecting the last *saved* version) when the model has any field marked
+`dimension.is_time: true` — click a row to drill into the next finer grain (year →
+quarter → month → day), or "Roll up" to go back.
 The canvas preserves anything it has no control for (`ai_context`, `custom_extensions`,
-non-ANSI_SQL dialect expressions, metrics themselves) by merging onto the existing
+non-ANSI_SQL dialect expressions) by merging onto the existing
 parsed model rather than regenerating YAML from scratch; see
 `src/semantica_api/graph_edit.py`. "Run DuckDB" executes the generated SQL for real,
 against a bundled TPC-DS demo dataset, an uploaded `.duckdb`/`.db` file, or a saved

@@ -122,14 +122,22 @@ class GraphRelationshipIn(BaseModel):
     to_columns: list[str]
 
 
+class GraphMetricIn(BaseModel):
+    name: str
+    expression: str  # ANSI_SQL text
+    description: str | None = None
+
+
 class GraphEditIn(BaseModel):
-    """Structured graph-canvas state for a model's datasets/relationships. Applied by
-    merging onto the existing parsed OSIDocument (see graph_edit.py) so attributes the
-    canvas has no control for (ai_context, custom_extensions, non-ANSI_SQL dialect
-    expressions, primary_key/unique_keys, metrics) are preserved untouched."""
+    """Structured graph-canvas state for a model's datasets/relationships/metrics.
+    Applied by merging onto the existing parsed OSIDocument (see graph_edit.py) so
+    attributes the canvas has no control for (ai_context, custom_extensions,
+    non-ANSI_SQL dialect expressions, primary_key/unique_keys) are preserved
+    untouched."""
 
     datasets: list[GraphDatasetIn]
     relationships: list[GraphRelationshipIn] = []
+    metrics: list[GraphMetricIn] = []
 
 
 class ConnectionIn(BaseModel):

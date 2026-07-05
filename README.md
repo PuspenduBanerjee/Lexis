@@ -248,6 +248,82 @@ The web UI's **Connections** page (linked from the header) covers all of the abo
 graphically - create/edit/delete/test a connection, with the same RBAC - and the
 model "Run" tab's "Saved connection" mode lets you pick one to run against.
 
+## Using the live MCP server
+
+The `--target mcp` transpile output above is schema-only — it describes the tools but
+doesn't run anything. For an AI tool to actually call a metric and get real query
+results back, Semantica can also serve a model as a **live** MCP server, one
+`query_<metric>` tool per metric, resolved against the demo dataset, a local DuckDB
+file, or Snowflake.
+
+**Local (stdio) — e.g. Claude Desktop or any MCP client that launches a subprocess:**
+
+```bash
+pip install -e ".[mcp]"
+semantica mcp-serve tests/fixtures/tpcds_semantic_model.yaml --demo
+# or: --duckdb-file /path/to/warehouse.duckdb
+# or: --snowflake-account ... --snowflake-user ... --snowflake-password-env ...
+```
+
+Point a client's config at it, e.g. Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "semantica": {
+      "command": "semantica",
+      "args": ["mcp-serve", "/path/to/model.yaml", "--demo"]
+    }
+  }
+}
+```
+
+`--duckdb-file`/`--snowflake-*` requires every dataset the model's metrics touch to
+be reachable the same way the corresponding **Connection** run mode already requires
+(see "Connecting to Snowflake or an external DuckDB file" above) — a `--duckdb-file`
+model's datasets must all share one catalog name. If a metric references a table your
+dataset doesn't have (e.g. running `--demo` against a model with a `store` dataset,
+which isn't in the bundled demo data), that one tool call fails with the underlying
+DB error — other metrics keep working.
+
+**Remote (HTTP) — mounted on the API, bound to an existing saved Connection:**
+
+```text
+POST/GET/DELETE /api/models/{model_id}/mcp?connection_id=<id>
+```
+
+Requires the same `X-User-Id` header as the rest of the API, and a `connection_id`
+for a Connection you've already created (see above) — the endpoint has no demo/upload
+mode, since a remote MCP client can't provide a file per request. `connection_id` is
+**not** the model's id, and there's no connection until you create one — a fresh
+install has none, so calling this endpoint before creating a connection fails with
+`{"detail":"connection not found"}`. If you just want to try it against the bundled
+demo data:
+
+```bash
+semantica export-demo-dataset --out /tmp/tpcds-demo.duckdb --force
+
+curl -X POST http://localhost:8000/api/connections \
+  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -d '{"name":"demo","type":"duckdb_file","config":{"path":"/tmp/tpcds-demo.duckdb"}}'
+# -> note the "id" in the response, use it as connection_id below
+```
+
+Then point any MCP client that supports a remote HTTP server at the model's `/mcp`
+URL; it speaks the standard MCP Streamable HTTP transport, e.g.:
+
+```bash
+curl -X POST "http://localhost:8000/api/models/1/mcp?connection_id=<id-from-above>" \
+  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize",
+       "params":{"protocolVersion":"2025-06-18","capabilities":{},
+                  "clientInfo":{"name":"curl","version":"0"}}}'
+```
+
+Each tool call opens the connection fresh (same per-request cost model the `/run`
+endpoint already has) and returns the metric's real result rows, not just the schema.
+
 ## Running tests
 
 ```bash

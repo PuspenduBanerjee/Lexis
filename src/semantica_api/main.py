@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from semantica_api.config import settings
 from semantica_api.db import Base, SessionLocal, engine
 from semantica_api.routers import connections, duckdb_run, graph, models, transpile, users
+from semantica_api.routers.mcp import mcp_asgi_app
 from semantica_api.seed import seed_default_users, seed_sample_model
 
 
@@ -84,3 +85,9 @@ app.include_router(duckdb_run.demo_router)
 app.include_router(graph.router)
 app.include_router(users.router)
 app.include_router(connections.router)
+
+# Mounted (not `include_router`'d) after every other `/api/models/...` route, so
+# Starlette's first-match-wins routing always tries those more specific routes
+# before falling through to this prefix mount - see `routers/mcp.py` for why the
+# live MCP endpoint needs a raw ASGI mount instead of a normal FastAPI route.
+app.mount("/api/models", mcp_asgi_app)

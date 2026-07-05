@@ -36,40 +36,50 @@ def _dimension_refs(model: ResolvedModel) -> list[str]:
     return refs
 
 
-def build_mcp_tool_manifest(model: ResolvedModel) -> dict:
-    """Build an MCP-style `{"tools": [...]}` manifest, one tool per OSI metric."""
+def build_metric_tool_specs(model: ResolvedModel) -> list[dict]:
+    """One `{"name", "description", "inputSchema"}` dict per OSI metric — the bare MCP
+    tool schema, shared by the static manifest below and the live MCP server
+    (`semantica.mcp_server`), which additionally needs plain schema dicts it can turn
+    into `mcp.types.Tool` objects (no extra `_semantica`-style fields)."""
     dimension_refs = _dimension_refs(model)
-    tools = []
+    specs = []
 
     for metric in model.metrics.values():
         description = _describe_ai_context(metric.description, metric.ai_context)
+        specs.append(
+            {
+                "name": f"query_{metric.name}",
+                "description": description or f"Query the {metric.name!r} metric.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "group_by": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": dimension_refs},
+                            "description": (
+                                "Zero or more dataset.field references to group results by."
+                            ),
+                        }
+                    },
+                    "additionalProperties": False,
+                },
+            }
+        )
+
+    return specs
+
+
+def build_mcp_tool_manifest(model: ResolvedModel) -> dict:
+    """Build an MCP-style `{"tools": [...]}` manifest, one tool per OSI metric."""
+    tools = []
+
+    for metric, spec in zip(model.metrics.values(), build_metric_tool_specs(model), strict=True):
         try:
             expr = model.resolve_expression(metric.expression, OSIDialect.ANSI_SQL)
         except Exception:
             expr = None
 
-        tool = {
-            "name": f"query_{metric.name}",
-            "description": description or f"Query the {metric.name!r} metric.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "group_by": {
-                        "type": "array",
-                        "items": {"type": "string", "enum": dimension_refs},
-                        "description": (
-                            "Zero or more dataset.field references to group results by."
-                        ),
-                    }
-                },
-                "additionalProperties": False,
-            },
-            "_semantica": {
-                "metric": metric.name,
-                "expression": expr,
-            },
-        }
-        tools.append(tool)
+        tools.append({**spec, "_semantica": {"metric": metric.name, "expression": expr}})
 
     return {
         "model": {

@@ -18,12 +18,34 @@ export function MetricNode({ data, selected }: NodeProps & { data: MetricNodeDat
         minWidth: 150,
         padding: "8px 14px",
         fontSize: 13,
-        textAlign: "center",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
       }}
     >
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      <div style={{ fontWeight: 600 }}>{metric.name}</div>
-      <div className="muted">metric</div>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 20,
+          height: 20,
+          flexShrink: 0,
+          borderRadius: "50%",
+          background: "var(--metric-accent-soft)",
+          color: "var(--metric-accent)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        Σ
+      </span>
+      <span>
+        <div style={{ fontWeight: 600 }}>{metric.name}</div>
+        <div className="muted">metric</div>
+      </span>
     </div>
   );
 }

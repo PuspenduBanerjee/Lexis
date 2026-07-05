@@ -30,7 +30,7 @@ export function ModelListPage() {
 
       {models && models.length === 0 && <p className="muted">No models yet.</p>}
       {models && models.length > 0 && (
-        <table>
+        <table className="data-table">
           <thead>
             <tr>
               <th>Name</th>

@@ -6,6 +6,9 @@
   --border: #ddd;
   --accent: #5b3bff;
   --danger: #c0392b;
+  --dataset-accent: #0d7d84;
+  --metric-accent: #b8590f;
+  --metric-accent-soft: #b8590f1a;
   --mono: ui-monospace, Consolas, monospace;
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
   color-scheme: light dark;
@@ -20,6 +23,9 @@
     --border: #33353c;
     --accent: #a08cff;
     --danger: #ff8a80;
+    --dataset-accent: #2fd0c8;
+    --metric-accent: #f0a94e;
+    --metric-accent-soft: #f0a94e26;
   }
 }
 
@@ -34,12 +40,20 @@ body {
   background: var(--bg);
 }
 
+.page-container {
+  max-width: min(1400px, 94vw);
+  margin: 0 auto;
+}
+
 .app-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
 }
 
 .app-header h1 {
@@ -48,9 +62,11 @@ body {
 }
 
 .app-main {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px;
+  padding: 24px 0;
+}
+
+p {
+  max-width: 70ch;
 }
 
 table {
@@ -162,4 +178,16 @@ pre {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* Opt-in for list-style tables (a handful of short, unrelated columns): fixes
+   the dead gap that auto table layout leaves between a narrow first column
+   and the rest once the table is wider than its content needs. */
+.data-table {
+  table-layout: fixed;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  width: 220px;
 }

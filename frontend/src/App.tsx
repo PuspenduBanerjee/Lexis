@@ -14,16 +14,18 @@ export default function App() {
       <UserProvider>
         <BrowserRouter>
           <header className="app-header">
-            <div className="row">
-              <h1>Semantica</h1>
-              <nav className="row">
-                <Link to="/">Models</Link>
-                <Link to="/connections">Connections</Link>
-              </nav>
+            <div className="app-header-inner page-container">
+              <div className="row">
+                <h1>Semantica</h1>
+                <nav className="row">
+                  <Link to="/">Models</Link>
+                  <Link to="/connections">Connections</Link>
+                </nav>
+              </div>
+              <UserSwitcher />
             </div>
-            <UserSwitcher />
           </header>
-          <main className="app-main">
+          <main className="app-main page-container">
             <Routes>
               <Route path="/" element={<ModelListPage />} />
               <Route path="/models/:id" element={<ModelDetailPage />} />

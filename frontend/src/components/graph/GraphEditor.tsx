@@ -138,6 +138,15 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
     };
   }, [fullscreen]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedId(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selectedId]);
+
   const saveMutation = useMutation({
     mutationFn: () => {
       const datasets: GraphDatasetIn[] = nodes.filter(isDatasetNode).map((n) => n.data.dataset);
@@ -312,8 +321,8 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
       <div
         style={
           fullscreen
-            ? { flex: 1, minHeight: 0, border: "1px solid var(--border)", borderRadius: 6 }
-            : { height: 480, border: "1px solid var(--border)", borderRadius: 6 }
+            ? { position: "relative", flex: 1, minHeight: 0, border: "1px solid var(--border)", borderRadius: 6 }
+            : { position: "relative", height: 480, border: "1px solid var(--border)", borderRadius: 6 }
         }
       >
         <ReactFlow
@@ -336,14 +345,43 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
           <Background />
           <Controls />
         </ReactFlow>
-      </div>
 
-      {selectedDataset && (
-        <DatasetPanel dataset={selectedDataset} onChange={updateSelectedDataset} onDelete={deleteSelectedNode} />
-      )}
-      {selectedMetric && (
-        <MetricPanel metric={selectedMetric} model={model} onChange={updateSelectedMetric} onDelete={deleteSelectedNode} />
-      )}
+        {(selectedDataset || selectedMetric) && (
+          <div
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              bottom: 12,
+              width: 360,
+              maxWidth: "calc(100% - 24px)",
+              overflowY: "auto",
+              overflowX: "auto",
+              background: "var(--bg)",
+              borderRadius: 6,
+              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.24)",
+              zIndex: 10,
+            }}
+          >
+            <div className="row" style={{ justifyContent: "flex-end", padding: "8px 8px 0" }}>
+              <button onClick={() => setSelectedId(null)} aria-label="Close inspector">
+                Close
+              </button>
+            </div>
+            {selectedDataset && (
+              <DatasetPanel dataset={selectedDataset} onChange={updateSelectedDataset} onDelete={deleteSelectedNode} />
+            )}
+            {selectedMetric && (
+              <MetricPanel
+                metric={selectedMetric}
+                model={model}
+                onChange={updateSelectedMetric}
+                onDelete={deleteSelectedNode}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

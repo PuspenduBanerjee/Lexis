@@ -12,11 +12,17 @@ persisted multi-model workspace, role-based access, and live DuckDB query execut
 See [docs/architecture-plan.md](docs/architecture-plan.md) for the full architecture
 writeup and design rationale.
 
+This repo tracks the upstream [OSI spec](https://github.com/open-semantic-interchange/OSI)
+as a git submodule at `third_party/OSI` (schema, converters docs, examples) so our
+vendored model classes (`src/semantica/_vendor/osi/`) can be kept in sync with it -
+see "Keeping OSI in sync" below.
+
 ## Quickstart: CLI
 
 Requires Python 3.11+.
 
 ```bash
+git submodule update --init   # first time only, or after a fresh clone
 pip install -e .
 semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target duckdb --metric total_sales
 ```
@@ -27,13 +33,24 @@ FROM tpcds.public.store_sales AS "store_sales"
 ```
 
 Other targets: `postgres`, `bigquery`, `databricks`, `snowflake` (all take `--metric`,
-and an optional repeatable `--group-by dataset.field`), plus `cube`, `dbt`, and `mcp`
-(whole-model outputs, no `--metric` needed):
+and an optional repeatable `--group-by dataset.field`), plus `cube`, `dbt`, `mcp`, and
+`snowflake_semantic_view` (whole-model outputs, no `--metric` needed):
 
 ```bash
 semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target mcp
 semantica transpile tests/fixtures/tpcds_semantic_model.yaml \
   --target duckdb --metric customer_lifetime_value --group-by item.i_category
+```
+
+`snowflake_semantic_view` emits a `CREATE OR REPLACE SEMANTIC VIEW` DDL statement
+(Snowflake's native Cortex Analyst semantic view) with `TABLES`/`RELATIONSHIPS`/
+`FACTS`/`DIMENSIONS`/`METRICS` clauses built from the model's datasets, relationships,
+fields, and metrics — fields with a `dimension` block become `DIMENSIONS`, fields
+without one become `FACTS`, and `ai_context` synonyms/descriptions map to `WITH
+SYNONYMS`/`COMMENT`:
+
+```bash
+semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target snowflake_semantic_view
 ```
 
 Add `--out <file>` to write to a file instead of stdout.
@@ -75,9 +92,22 @@ npm install
 npm run dev                 # http://localhost:5173, proxies /api -> :8000
 ```
 
+Or run both together with one script, from the repo root (needs `uvicorn`/`alembic`
+on PATH already, e.g. via the pyenv/venv `pip install -e ".[dev,api]"` above):
+
+```bash
+./scripts/dev.sh start      # runs migrations, launches both, backgrounded
+./scripts/dev.sh status     # is either running, and which pid
+./scripts/dev.sh stop       # stops both (and their child processes)
+./scripts/dev.sh restart
+```
+
+Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `SEMANTICA_API_PORT`/
+`SEMANTICA_WEB_PORT` env vars.
+
 Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
 role, paste an OSI YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
-create a model, then use the **Browse** / **Design** / **Transpile** / **Run DuckDB**
+create a model, then use the **Browse** / **Design** / **Transpile** / **Test Metrics**
 tabs on the model's page (a sample model is preloaded automatically on first run, so
 there's already something to open). "Design" is a node-graph canvas (owner/admin only)
 for visually adding/editing datasets, fields, and relationships — drag between the
@@ -93,7 +123,7 @@ quarter → month → day), or "Roll up" to go back.
 The canvas preserves anything it has no control for (`ai_context`, `custom_extensions`,
 non-ANSI_SQL dialect expressions) by merging onto the existing
 parsed model rather than regenerating YAML from scratch; see
-`src/semantica_api/graph_edit.py`. "Run DuckDB" executes the generated SQL for real,
+`src/semantica_api/graph_edit.py`. "Test Metrics" executes the generated SQL for real,
 against a bundled TPC-DS demo dataset, an uploaded `.duckdb`/`.db` file, or a saved
 connection (see "Connecting to Snowflake or an external DuckDB file" below) — pick
 "Time series" there for the full drill-down/roll-up view (with metric, time-field, and
@@ -240,7 +270,52 @@ tests/api/              backend API tests
 docs/architecture-plan.md   architecture decisions and design rationale
 docker/                 Dockerfiles + nginx config for the two images (see docker-compose.yml)
 scripts/docker-build.sh   builds both images directly with `docker build`, no compose needed
+third_party/OSI/        git submodule: upstream OSI spec/schema/converters docs/examples
 ```
+
+## Keeping OSI in sync
+
+`src/semantica/_vendor/osi/models.py` is a vendored (not pip-installed - `osi-python`
+isn't on PyPI yet) copy of upstream's pydantic model classes, and `tests/fixtures/*.yaml`
+are meant to conform to upstream's JSON Schema. Both are checked against the
+`third_party/OSI` submodule by `tests/test_osi_spec_conformance.py`, so a submodule bump
+that changes either will fail loudly instead of silently drifting.
+
+To pick up an upstream OSI change:
+
+```bash
+git submodule update --remote third_party/OSI   # bump the submodule to upstream's latest main
+scripts/sync_osi_vendor.sh                       # re-vendor models.py + refresh NOTICE.md's commit pin
+pytest tests/test_osi_spec_conformance.py tests/test_parser.py tests/test_resolved_model.py
+```
+
+`scripts/sync_osi_vendor.sh` only overwrites `models.py` verbatim; `__init__.py` is
+hand-adapted (relative import, own docstring) and the script just warns if a new
+upstream class/name isn't re-exported yet, so it needs a manual one-line addition in
+that case.
+
+`third_party/OSI` is upstream's repo, not ours - never edit files inside it directly,
+and never commit local changes to it (we have no push access, and a submodule pointer
+referencing a commit we made locally but never pushed would break for everyone else
+who clones this repo). Its `.gitmodules` entry sets `ignore = dirty`, so `git status`/
+`git diff` won't even show local edits inside it; the only supported way to move it
+forward is `git submodule update --remote third_party/OSI` followed by
+`scripts/sync_osi_vendor.sh`.
+
+This is also enforced by two automated checks, both running
+`scripts/check_osi_submodule_pin.sh` (fails if `third_party/OSI` is pinned to a commit
+that isn't reachable from any of its remote branches - i.e. a local-only commit made by
+accidentally `cd`-ing into the submodule and committing there):
+
+- **CI** (`.github/workflows/check-osi-submodule.yml`) runs it on every push/PR - the
+  real backstop, since it can't be skipped.
+- **A local pre-commit hook** (`.githooks/pre-commit`) runs it before any commit that
+  touches the submodule pin, so you find out before pushing rather than after CI fails.
+  Opt in once per clone (git doesn't version `.git/hooks`, so this isn't automatic):
+
+  ```bash
+  git config core.hooksPath .githooks
+  ```
 
 ## License
 

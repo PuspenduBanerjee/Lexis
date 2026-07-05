@@ -91,6 +91,8 @@ semantica/
 - dbt Labs' `docs.getdbt.com/docs/build/osi-semantic-models` (OSI ingestion in dbt-core 1.12+) — defines the exact `OSI/`-directory / `osi-paths` packaging convention and the OSI schema version dbt currently expects; the `dbt_osi.py` emitter should target this precisely rather than guessing dbt's expectations.
 - (Reference only, not a dependency) dbt's now-deprecated `dbt-semantic-interfaces` validation rules (non-additive dimensions, `agg_time_dimension`, primary/foreign entity join inference) — worth skimming for edge cases OSI's spec may not yet address, since it's a mature, battle-tested rule set.
 
+**Update**: the OSI repo is now checked out as a git submodule at `third_party/OSI` (still not depended on as `osi-python` isn't published to PyPI), so the reuse points above are live files, not remote references — `core-spec/osi-schema.json` is used directly by `tests/test_osi_spec_conformance.py` to validate fixtures, and `scripts/sync_osi_vendor.sh` re-vendors `models.py` from the submodule on demand. See README's "Keeping OSI in sync".
+
 ## Verification
 
 1. Parse `tpcds_semantic_model.yaml` via `osi-python` into an `OSIDocument`; assert datasets/relationships/metrics counts match the source file.

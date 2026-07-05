@@ -68,7 +68,7 @@ Deferred items, not blocking current functionality.
   serializing in-progress graph edits to YAML text and parsing YAML edits back into
   graph state on every keystroke, not just on save.
 
-## Time-series drill-down/roll-up (Design tab preview + Run DuckDB tab)
+## Time-series drill-down/roll-up (Design tab preview + Test Metrics tab)
 
 - **DATE_TRUNC-based grain grouping** (`SqlDialectEmitter.emit_timeseries_query` in
   `src/semantica/transpilers/sql/base.py`) only covers `year`/`quarter`/`month`/`day`
@@ -93,5 +93,5 @@ Deferred items, not blocking current functionality.
   (`TimeSeriesPanel.tsx`'s `history` state).
 - **The Design tab's per-metric preview is demo-mode only** (`MetricPanel.tsx` always
   passes `mode="demo"`) - there's no upload-a-.duckdb-file option there, unlike the
-  Run DuckDB tab's full `TimeSeriesPanel`. If the selected metric/time-field combo
+  Test Metrics tab's full `TimeSeriesPanel`. If the selected metric/time-field combo
   isn't demo-compatible, the preview just shows the backend's 400 error text.

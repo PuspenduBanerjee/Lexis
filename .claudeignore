@@ -1,0 +1,31 @@
+# Dependency directories - large, vendored, never hand-edited
+node_modules/
+frontend/node_modules/
+.venv/
+third_party/OSI/
+
+# Build output - regenerated from source, not source itself
+frontend/dist/
+frontend/dist-ssr/
+
+# Python caches/artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Lock files - huge, machine-generated, rarely worth reading in full
+package-lock.json
+frontend/package-lock.json
+uv.lock
+
+# Local dev/runtime state
+semantica_dev.db
+*.duckdb
+.dev/
+*.log
+
+# Editor/OS cruft
+.vscode/
+.idea/
+.DS_Store

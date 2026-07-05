@@ -57,3 +57,13 @@ def test_mcp_target(client_as, model_id):
     resp = client_as("viewer").post(f"/api/models/{model_id}/transpile", json={"target": "mcp"})
     assert resp.status_code == 200
     assert "tools" in json.loads(resp.json()["content"])
+
+
+def test_snowflake_semantic_view_target(client_as, model_id):
+    resp = client_as("viewer").post(
+        f"/api/models/{model_id}/transpile", json={"target": "snowflake_semantic_view"}
+    )
+    assert resp.status_code == 200
+    content = resp.json()["content"]
+    assert content.startswith("CREATE OR REPLACE SEMANTIC VIEW")
+    assert "TABLES (" in content

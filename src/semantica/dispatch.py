@@ -11,9 +11,10 @@ from semantica.resolved_model import ResolvedModel
 from semantica.transpilers.cube import emit_cube_yaml
 from semantica.transpilers.dbt_osi import emit_dbt_osi_document
 from semantica.transpilers.mcp import emit_mcp_tool_manifest
+from semantica.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
 from semantica.transpilers.sql import EMITTERS as SQL_EMITTERS
 
-TARGETS = [*SQL_EMITTERS.keys(), "cube", "dbt", "mcp"]
+TARGETS = [*SQL_EMITTERS.keys(), "cube", "dbt", "mcp", "snowflake_semantic_view"]
 
 
 @dataclass(frozen=True)
@@ -46,5 +47,7 @@ def transpile(
         return TranspileResult(content=result.artifact.content, warnings=result.warnings)
     elif target == "mcp":
         return TranspileResult(content=emit_mcp_tool_manifest(model), warnings=[])
+    elif target == "snowflake_semantic_view":
+        return TranspileResult(content=emit_snowflake_semantic_view(model), warnings=[])
     else:
         raise ValueError(f"Unknown target {target!r}")

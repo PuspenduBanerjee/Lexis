@@ -15,7 +15,15 @@ from semantica.resolved_model import MissingExpressionError, ResolvedModel
 from semantica_api.models import Connection, SemanticModelRecord
 
 TARGET = Literal[
-    "duckdb", "postgres", "bigquery", "databricks", "snowflake", "cube", "dbt", "mcp"
+    "duckdb",
+    "postgres",
+    "bigquery",
+    "databricks",
+    "snowflake",
+    "cube",
+    "dbt",
+    "mcp",
+    "snowflake_semantic_view",
 ]
 
 TIME_GRAIN = Literal["year", "quarter", "month", "day"]

@@ -1,4 +1,4 @@
-[submodule "third_party/OSI"]
-	path = third_party/OSI
-	url = https://github.com/open-semantic-interchange/OSI
+[submodule "third_party/ossie"]
+	path = third_party/ossie
+	url = https://github.com/apache/ossie
 	ignore = dirty

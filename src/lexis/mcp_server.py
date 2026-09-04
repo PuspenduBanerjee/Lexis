@@ -16,9 +16,9 @@ import anyio
 from mcp import types
 from mcp.server.lowlevel import Server
 
-from semantica.resolved_model import ResolvedModel
-from semantica.transpilers.mcp import build_metric_tool_specs
-from semantica.transpilers.sql.base import SqlDialectEmitter
+from lexis.resolved_model import ResolvedModel
+from lexis.transpilers.mcp import build_metric_tool_specs
+from lexis.transpilers.sql.base import SqlDialectEmitter
 
 # A metric result has no natural row limit of its own (it's an aggregate query, not a
 # table scan) - this only guards against a pathological `group_by` fanning out to an
@@ -40,8 +40,8 @@ def run_metric_query(
     group_by: list[str] | None,
 ) -> dict:
     """Driver-agnostic metric execution - same shape as
-    `semantica_api.query_runtime.run_metric_query`, duplicated here (rather than
-    imported) so this core module stays free of the `semantica_api` (FastAPI/
+    `lexis_api.query_runtime.run_metric_query`, duplicated here (rather than
+    imported) so this core module stays free of the `lexis_api` (FastAPI/
     SQLAlchemy) dependency chain; both copies are small enough that the duplication
     is cheaper than relocating that module."""
     sql = emitter.emit_metric_query(model, metric, group_by=group_by)

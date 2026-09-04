@@ -10,7 +10,7 @@ interface ConfigField {
   required: boolean;
 }
 
-// Mirrors semantica_api/connection_runtime.py's _REQUIRED_CONFIG_KEYS/_OPTIONAL_CONFIG_KEYS.
+// Mirrors lexis_api/connection_runtime.py's _REQUIRED_CONFIG_KEYS/_OPTIONAL_CONFIG_KEYS.
 const CONFIG_FIELDS: Record<ConnectionType, ConfigField[]> = {
   duckdb_file: [{ key: "path", label: "Path (resolved on the API server)", required: true }],
   snowflake: [

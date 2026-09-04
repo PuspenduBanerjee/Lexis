@@ -13,8 +13,8 @@ API_PID_FILE="$RUN_DIR/api.pid"
 WEB_PID_FILE="$RUN_DIR/web.pid"
 API_LOG="$RUN_DIR/api.log"
 WEB_LOG="$RUN_DIR/web.log"
-API_PORT="${SEMANTICA_API_PORT:-8000}"
-WEB_PORT="${SEMANTICA_WEB_PORT:-5173}"
+API_PORT="${LEXIS_API_PORT:-8000}"
+WEB_PORT="${LEXIS_WEB_PORT:-5173}"
 
 # Each process is launched via `setsid` so it becomes its own process-group leader -
 # that lets `stop` kill the whole group (npm's `run dev` and uvicorn's `--reload`
@@ -68,7 +68,7 @@ stop_one() {
 start() {
   if ! command -v uvicorn >/dev/null 2>&1 || ! command -v alembic >/dev/null 2>&1; then
     echo "error: uvicorn/alembic not found on PATH - activate the project's pyenv" >&2
-    echo "       virtualenv first (see .python-version), e.g. 'pyenv activate semantica'" >&2
+    echo "       virtualenv first (see .python-version), e.g. 'pyenv activate lexis'" >&2
     echo "       or 'pip install -e \".[dev,api]\"' if it's not installed there yet." >&2
     exit 1
   fi
@@ -81,7 +81,7 @@ start() {
   alembic upgrade head
 
   start_one "Backend" "$API_PID_FILE" "$API_LOG" \
-    uvicorn semantica_api.main:app --reload --port "$API_PORT"
+    uvicorn lexis_api.main:app --reload --port "$API_PORT"
   start_one "Frontend" "$WEB_PID_FILE" "$WEB_LOG" \
     npm --prefix frontend run dev -- --port "$WEB_PORT"
 
@@ -112,7 +112,7 @@ case "${1:-}" in
   status) status ;;
   *)
     echo "Usage: $0 {start|stop|restart|status}" >&2
-    echo "Env overrides: SEMANTICA_API_PORT (default 8000), SEMANTICA_WEB_PORT (default 5173)" >&2
+    echo "Env overrides: LEXIS_API_PORT (default 8000), LEXIS_WEB_PORT (default 5173)" >&2
     exit 1
     ;;
 esac

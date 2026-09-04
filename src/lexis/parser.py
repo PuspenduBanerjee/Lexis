@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from semantica._vendor.ossie import OssieDocument
+from lexis._vendor.ossie import OssieDocument
 
 
 def parse_ossie_yaml(text: str) -> OssieDocument:

@@ -12,7 +12,7 @@ docs
 third_party
 TODO.md
 Notess
-semantica_dev.db
+lexis_dev.db
 *.duckdb
 
 frontend/node_modules

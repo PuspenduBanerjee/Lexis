@@ -18,8 +18,8 @@ import re
 
 import yaml
 
-from semantica._vendor.ossie import OssieDialect
-from semantica.resolved_model import ResolvedModel
+from lexis._vendor.ossie import OssieDialect
+from lexis.resolved_model import ResolvedModel
 
 _SIMPLE_AGGREGATE_RE = re.compile(
     r"^(SUM|AVG|COUNT|MIN|MAX)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\)$",

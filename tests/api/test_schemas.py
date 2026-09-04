@@ -1,11 +1,11 @@
-"""Unit tests for the to_*_out mapping helpers in semantica_api.schemas.
+"""Unit tests for the to_*_out mapping helpers in lexis_api.schemas.
 
 Pure-function tests (no HTTP/DB involved) - lives under tests/api/ alongside the
-rest of the semantica_api test suite rather than tests/, per the existing split
-between core-library tests and semantica_api tests.
+rest of the lexis_api test suite rather than tests/, per the existing split
+between core-library tests and lexis_api tests.
 """
 
-from semantica._vendor.ossie import (
+from lexis._vendor.ossie import (
     OssieDataset,
     OssieDataType,
     OssieDialect,
@@ -16,8 +16,8 @@ from semantica._vendor.ossie import (
     OssieMetric,
     OssieSemanticModel,
 )
-from semantica.resolved_model import ResolvedModel
-from semantica_api.schemas import to_dataset_out, to_metric_out
+from lexis.resolved_model import ResolvedModel
+from lexis_api.schemas import to_dataset_out, to_metric_out
 
 
 def _ansi_expr(text: str) -> OssieExpression:

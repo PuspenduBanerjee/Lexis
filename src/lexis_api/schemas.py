@@ -1,6 +1,6 @@
 """Pydantic request/response schemas for the API.
 
-Deliberately separate from the vendored `semantica._vendor.ossie` pydantic models —
+Deliberately separate from the vendored `lexis._vendor.ossie` pydantic models —
 the HTTP contract shouldn't be coupled to (and broken by) internal vendored-library
 shape changes. `to_*_out` helpers below map Ossie objects into these schemas.
 """
@@ -10,9 +10,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from semantica._vendor.ossie import OssieDataset, OssieDialect, OssieMetric, OssieRelationship
-from semantica.resolved_model import MissingExpressionError, ResolvedModel
-from semantica_api.models import Connection, SemanticModelRecord
+from lexis._vendor.ossie import OssieDataset, OssieDialect, OssieMetric, OssieRelationship
+from lexis.resolved_model import MissingExpressionError, ResolvedModel
+from lexis_api.models import Connection, SemanticModelRecord
 
 TARGET = Literal[
     "duckdb",

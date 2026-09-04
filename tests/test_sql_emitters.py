@@ -1,8 +1,8 @@
 import duckdb
 import pytest
 
-from semantica._vendor.ossie import OssieDialect, OssieDialectExpression
-from semantica.transpilers.sql import BigQueryEmitter, DuckDBEmitter, SnowflakeEmitter
+from lexis._vendor.ossie import OssieDialect, OssieDialectExpression
+from lexis.transpilers.sql import BigQueryEmitter, DuckDBEmitter, SnowflakeEmitter
 
 
 def test_duckdb_single_dataset_metric_has_no_join(tpcds_model):

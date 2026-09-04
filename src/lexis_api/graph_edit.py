@@ -10,7 +10,7 @@ re-serializes via the existing OssieDocument.to_ossie_yaml() - no separate YAML
 generation logic.
 """
 
-from semantica._vendor.ossie import (
+from lexis._vendor.ossie import (
     OssieDataset,
     OssieDialect,
     OssieDialectExpression,
@@ -20,7 +20,7 @@ from semantica._vendor.ossie import (
     OssieMetric,
     OssieRelationship,
 )
-from semantica_api.schemas import (
+from lexis_api.schemas import (
     GraphDatasetIn,
     GraphEditIn,
     GraphFieldIn,

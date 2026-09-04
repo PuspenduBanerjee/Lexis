@@ -8,9 +8,9 @@ and DuckDB supports attaching a secondary catalog under an explicit name via
 so both paths just attach a database under the catalog name the model's SQL expects.
 
 The demo dataset itself (`build_tpcds_demo_connection`/`TPCDS_DEMO_SOURCES`) lives in
-`semantica.demo_data` (core library, not this API package) so the CLI's
+`lexis.demo_data` (core library, not this API package) so the CLI's
 `export-demo-dataset` command can reuse the exact same CREATE/INSERT statements
-without depending on semantica_api.
+without depending on lexis_api.
 """
 
 import re
@@ -22,12 +22,12 @@ from pathlib import Path
 import duckdb
 from fastapi import HTTPException, UploadFile
 
-from semantica.demo_data import TPCDS_DEMO_SOURCES, build_tpcds_demo_connection
-from semantica.resolved_model import ResolvedModel
-from semantica.transpilers.sql import DuckDBEmitter
-from semantica_api.config import settings
-from semantica_api.query_runtime import run_metric_query as _run_metric_query
-from semantica_api.query_runtime import run_timeseries_query as _run_timeseries_query
+from lexis.demo_data import TPCDS_DEMO_SOURCES, build_tpcds_demo_connection
+from lexis.resolved_model import ResolvedModel
+from lexis.transpilers.sql import DuckDBEmitter
+from lexis_api.config import settings
+from lexis_api.query_runtime import run_metric_query as _run_metric_query
+from lexis_api.query_runtime import run_timeseries_query as _run_timeseries_query
 
 __all__ = [
     "build_tpcds_demo_connection",

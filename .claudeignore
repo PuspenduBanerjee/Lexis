@@ -20,7 +20,7 @@ frontend/package-lock.json
 uv.lock
 
 # Local dev/runtime state
-semantica_dev.db
+lexis_dev.db
 *.duckdb
 .dev/
 *.log

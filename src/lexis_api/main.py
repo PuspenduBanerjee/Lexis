@@ -10,11 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from semantica_api.config import settings
-from semantica_api.db import Base, SessionLocal, engine
-from semantica_api.routers import connections, duckdb_run, graph, models, transpile, users
-from semantica_api.routers.mcp import mcp_asgi_app
-from semantica_api.seed import seed_default_users, seed_sample_model
+from lexis_api.config import settings
+from lexis_api.db import Base, SessionLocal, engine
+from lexis_api.routers import connections, duckdb_run, graph, models, transpile, users
+from lexis_api.routers.mcp import mcp_asgi_app
+from lexis_api.seed import seed_default_users, seed_sample_model
 
 
 @asynccontextmanager
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Semantica API", lifespan=lifespan)
+app = FastAPI(title="Lexis API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,7 +51,7 @@ def handle_yaml_syntax_error(request: Request, exc: yaml.YAMLError) -> JSONRespo
 
 @app.exception_handler(ValueError)
 def handle_library_value_error(request: Request, exc: ValueError) -> JSONResponse:
-    # Covers semantica.resolved_model.UnresolvedJoinError/MissingExpressionError
+    # Covers lexis.resolved_model.UnresolvedJoinError/MissingExpressionError
     # (both subclass ValueError) and plain ValueError from the emitters/dispatch.
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 

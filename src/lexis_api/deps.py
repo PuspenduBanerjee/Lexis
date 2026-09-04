@@ -7,9 +7,9 @@ every route depends on it by signature only, never inspects headers directly.
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from semantica_api.config import settings
-from semantica_api.db import get_db
-from semantica_api.models import Connection, Role, SemanticModelRecord, User
+from lexis_api.config import settings
+from lexis_api.db import get_db
+from lexis_api.models import Connection, Role, SemanticModelRecord, User
 
 
 def find_user_or_401(db: Session, user_id: int) -> User:

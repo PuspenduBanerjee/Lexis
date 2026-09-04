@@ -14,9 +14,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from semantica_api.config import settings
-from semantica_api.db import Base
-from semantica_api import models  # noqa: F401 - registers ORM classes on Base.metadata
+from lexis_api.config import settings
+from lexis_api.db import Base
+from lexis_api import models  # noqa: F401 - registers ORM classes on Base.metadata
 
 target_metadata = Base.metadata
 

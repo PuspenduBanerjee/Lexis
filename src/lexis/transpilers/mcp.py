@@ -1,6 +1,6 @@
 """Ossie -> MCP tool manifest / LLM function-calling schema emitter.
 
-This is Semantica's differentiator: turn a metric's `ai_context` (instructions,
+This is Lexis's differentiator: turn a metric's `ai_context` (instructions,
 synonyms, examples) into a grounded tool description, and constrain `group_by` to an
 explicit enum of real dataset.field refs — so an agent gets a governed query tool
 instead of having to guess joins/columns/synonyms from a bare warehouse schema.
@@ -8,8 +8,8 @@ instead of having to guess joins/columns/synonyms from a bare warehouse schema.
 
 import json
 
-from semantica._vendor.ossie import OssieAIContextObject, OssieDialect
-from semantica.resolved_model import ResolvedModel
+from lexis._vendor.ossie import OssieAIContextObject, OssieDialect
+from lexis.resolved_model import ResolvedModel
 
 
 def _describe_ai_context(base_description: str | None, ai_context) -> str:
@@ -39,8 +39,8 @@ def _dimension_refs(model: ResolvedModel) -> list[str]:
 def build_metric_tool_specs(model: ResolvedModel) -> list[dict]:
     """One `{"name", "description", "inputSchema"}` dict per Ossie metric — the bare MCP
     tool schema, shared by the static manifest below and the live MCP server
-    (`semantica.mcp_server`), which additionally needs plain schema dicts it can turn
-    into `mcp.types.Tool` objects (no extra `_semantica`-style fields)."""
+    (`lexis.mcp_server`), which additionally needs plain schema dicts it can turn
+    into `mcp.types.Tool` objects (no extra `_lexis`-style fields)."""
     dimension_refs = _dimension_refs(model)
     specs = []
 
@@ -79,7 +79,7 @@ def build_mcp_tool_manifest(model: ResolvedModel) -> dict:
         except Exception:
             expr = None
 
-        tools.append({**spec, "_semantica": {"metric": metric.name, "expression": expr}})
+        tools.append({**spec, "_lexis": {"metric": metric.name, "expression": expr}})
 
     return {
         "model": {

@@ -13,9 +13,9 @@ so the same two functions serve every mode.
 from datetime import date, datetime
 from typing import Any
 
-from semantica.resolved_model import ResolvedModel
-from semantica.transpilers.sql.base import SqlDialectEmitter
-from semantica_api.config import settings
+from lexis.resolved_model import ResolvedModel
+from lexis.transpilers.sql.base import SqlDialectEmitter
+from lexis_api.config import settings
 
 
 def _json_safe(value: Any) -> Any:

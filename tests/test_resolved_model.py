@@ -1,7 +1,7 @@
 import pytest
 
-from semantica._vendor.ossie import OssieDialect
-from semantica.resolved_model import MissingExpressionError, UnresolvedJoinError
+from lexis._vendor.ossie import OssieDialect
+from lexis.resolved_model import MissingExpressionError, UnresolvedJoinError
 
 
 def test_referenced_datasets_extracts_qualified_refs(tpcds_model):
@@ -46,10 +46,10 @@ def test_resolve_expression_falls_back_to_ansi_sql(tpcds_model):
 
 
 def test_resolve_expression_raises_when_no_fallback_available():
-    from semantica._vendor.ossie import OssieDialectExpression, OssieExpression
+    from lexis._vendor.ossie import OssieDialectExpression, OssieExpression
 
     expr = OssieExpression(dialects=[OssieDialectExpression(dialect=OssieDialect.SNOWFLAKE, expression="x")])
-    from semantica.resolved_model import ResolvedModel
+    from lexis.resolved_model import ResolvedModel
 
     with pytest.raises(MissingExpressionError):
         ResolvedModel(semantic_model=None).resolve_expression(expr, OssieDialect.DATABRICKS)

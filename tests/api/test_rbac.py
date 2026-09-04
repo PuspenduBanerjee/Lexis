@@ -51,8 +51,8 @@ def test_editor_can_edit_own_model(client_as, editor_model_id, tpcds_yaml):
 
 
 def test_second_editor_cannot_edit_first_editors_model(client, client_as, editor_model_id, tpcds_yaml):
-    from semantica_api.db import SessionLocal
-    from semantica_api.models import Role, User
+    from lexis_api.db import SessionLocal
+    from lexis_api.models import Role, User
 
     db = SessionLocal()
     try:

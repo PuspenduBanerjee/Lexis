@@ -1,8 +1,8 @@
-# Semantica: Architecture Foundation Decision & Initial Scaffold
+# Lexis: Architecture Foundation Decision & Initial Scaffold
 
 ## Context
 
-Semantica's goal is to be an open, Ossie-native semantic-layer platform that stands as a compelling alternative to proprietary offerings like AtScale: author models once in **Ossie** (originally Open Semantic Interchange (OSI) — Apache-2.0 YAML spec, v1.0 finalized Jan 27 2026, led by Snowflake with AtScale/dbt Labs/Salesforce/Preset as partners; donated to the ASF mid-2026 and continued as Apache Ossie, incubating), then transpile those models into (a) warehouse-native SQL and (b) formats BI/AI consumers understand.
+Lexis's goal is to be an open, Ossie-native semantic-layer platform that stands as a compelling alternative to proprietary offerings like AtScale: author models once in **Ossie** (originally Open Semantic Interchange (OSI) — Apache-2.0 YAML spec, v1.0 finalized Jan 27 2026, led by Snowflake with AtScale/dbt Labs/Salesforce/Preset as partners; donated to the ASF mid-2026 and continued as Apache Ossie, incubating), then transpile those models into (a) warehouse-native SQL and (b) formats BI/AI consumers understand.
 
 The open question going in was whether to build this from scratch or build on top of an existing open-source project. Three candidates were investigated in depth this session:
 
@@ -13,7 +13,7 @@ The open question going in was whether to build this from scratch or build on to
 
 **Conclusion**: don't embed any of the three. Hand-write our own Ossie → SQL-dialect emitters (bounded, testable problem) and treat Cube Core, LookML, and (optionally) Malloy source as **transpilation targets** alongside AI-consumer formats — exactly the "hub-and-spoke" pattern Ossie's own converters already use (`Ossie core spec` as the hub, N vendor spokes). Users who want live serving/caching can run their own Cube Core instance fed by our generated YAML; we don't need to build or host a query runtime ourselves for v1.
 
-This also resolves the previously-open language-stack question: since nothing is embedded from the JS/TS ecosystem, there's no pull toward TypeScript. **Python end-to-end**, matching Ossie's own reference tooling (`apache-ossie`, a pydantic package for parsing/validating/serializing Ossie YAML) and the `semantica` pyenv virtualenv already created for this project.
+This also resolves the previously-open language-stack question: since nothing is embedded from the JS/TS ecosystem, there's no pull toward TypeScript. **Python end-to-end**, matching Ossie's own reference tooling (`apache-ossie`, a pydantic package for parsing/validating/serializing Ossie YAML) and the `lexis` pyenv virtualenv already created for this project.
 
 ## Recommended Architecture
 
@@ -47,16 +47,16 @@ Ossie YAML (author's model)
             instead of hallucinating joins/columns.
 ```
 
-Kylin, Cube Core (as a running server), and Malloy (as its own tool) are **downstream consumers of Semantica's output**, not build-time dependencies — this can be revisited later if a hosted live-serving runtime becomes a priority (Phase 3+, out of scope now).
+Kylin, Cube Core (as a running server), and Malloy (as its own tool) are **downstream consumers of Lexis's output**, not build-time dependencies — this can be revisited later if a hosted live-serving runtime becomes a priority (Phase 3+, out of scope now).
 
 ## Initial Scaffold
 
-Repo is currently empty (`Notess` placeholder only), pyenv virtualenv `semantica` (Python 3.14.5) already pinned via `.python-version`.
+Repo is currently empty (`Notess` placeholder only), pyenv virtualenv `lexis` (Python 3.14.5) already pinned via `.python-version`.
 
 ```
-semantica/
+lexis/
   pyproject.toml                 # deps: apache-ossie (or vendored copy), pyyaml, click/typer, pytest
-  src/semantica/
+  src/lexis/
     __init__.py
     parser.py                    # thin wrapper around ossie.models.OssieDocument
     resolved_model.py            # join-graph resolution, field/metric indexing, dialect fallback
@@ -72,7 +72,7 @@ semantica/
       cube.py                    # Ossie -> Cube.js YAML
       dbt_ossie.py                # package/validate our Ossie doc for dbt-core 1.12+ osi/ ingestion
       mcp.py                     # Ossie -> MCP tool manifest / function-calling schema
-    cli.py                       # `semantica transpile <model.yaml> --target duckdb|cube|dbt|mcp`
+    cli.py                       # `lexis transpile <model.yaml> --target duckdb|cube|dbt|mcp`
   tests/
     fixtures/
       tpcds_semantic_model.yaml  # copy from Ossie repo (examples/) - canonical real-world test model

@@ -1,6 +1,6 @@
 """Live DuckDB execution through the full HTTP + upload path.
 
-Reuses `semantica_api.duckdb_runtime.build_tpcds_demo_connection` (see that module's
+Reuses `lexis_api.duckdb_runtime.build_tpcds_demo_connection` (see that module's
 docstring for why this doesn't instead live under tests/fixtures/ as originally
 sketched: production code can't depend on the tests/ tree).
 """

@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models: User, Role, SemanticModelRecord, Connection.
 
 Named `SemanticModelRecord` (not `SemanticModel`) to avoid confusion with
-`semantica._vendor.ossie.OssieSemanticModel`, which shows up in the same import graph
+`lexis._vendor.ossie.OssieSemanticModel`, which shows up in the same import graph
 when routes parse `raw_yaml` back into a live Ossie document.
 """
 
@@ -13,7 +13,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from semantica_api.db import Base
+from lexis_api.db import Base
 
 
 class Role(str, enum.Enum):

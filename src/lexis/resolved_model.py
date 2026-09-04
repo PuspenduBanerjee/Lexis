@@ -4,7 +4,7 @@ import re
 from collections import deque
 from dataclasses import dataclass, field
 
-from semantica._vendor.ossie import (
+from lexis._vendor.ossie import (
     OssieDataset,
     OssieDialect,
     OssieExpression,

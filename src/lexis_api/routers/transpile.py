@@ -2,12 +2,12 @@
 
 from fastapi import APIRouter, Depends
 
-from semantica.dispatch import transpile as dispatch_transpile
-from semantica.parser import parse_ossie_yaml
-from semantica.resolved_model import ResolvedModel
-from semantica_api.deps import get_visible_model
-from semantica_api.models import SemanticModelRecord
-from semantica_api.schemas import TranspileIn, TranspileOut
+from lexis.dispatch import transpile as dispatch_transpile
+from lexis.parser import parse_ossie_yaml
+from lexis.resolved_model import ResolvedModel
+from lexis_api.deps import get_visible_model
+from lexis_api.models import SemanticModelRecord
+from lexis_api.schemas import TranspileIn, TranspileOut
 
 router = APIRouter(prefix="/api/models", tags=["transpile"])
 

@@ -18,10 +18,10 @@ import snowflake.connector
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from semantica.resolved_model import ResolvedModel
-from semantica.transpilers.sql import DuckDBEmitter, SnowflakeEmitter
-from semantica.transpilers.sql.base import SqlDialectEmitter
-from semantica_api.models import Connection, ConnectionType
+from lexis.resolved_model import ResolvedModel
+from lexis.transpilers.sql import DuckDBEmitter, SnowflakeEmitter
+from lexis.transpilers.sql.base import SqlDialectEmitter
+from lexis_api.models import Connection, ConnectionType
 
 _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

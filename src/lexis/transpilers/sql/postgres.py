@@ -1,4 +1,4 @@
-from semantica._vendor.ossie import OssieDialect
+from lexis._vendor.ossie import OssieDialect
 
 from .base import SqlDialectEmitter
 

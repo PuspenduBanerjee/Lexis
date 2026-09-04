@@ -3,7 +3,7 @@ bundled demo dataset, an uploaded .duckdb file, or a persisted named Connection
 (duckdb_file or snowflake - see connection_runtime.py). Also exposes a download of
 the demo dataset itself as a real .duckdb file (`demo_router`), so it can seed the
 Upload mode or a duckdb_file connection - the CLI's `export-demo-dataset` command is
-the same operation, see `semantica.demo_data.export_demo_dataset`."""
+the same operation, see `lexis.demo_data.export_demo_dataset`."""
 
 import json
 import os
@@ -16,15 +16,15 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
-from semantica._vendor.ossie import OssieDialect
-from semantica.demo_data import export_demo_dataset
-from semantica.parser import parse_ossie_yaml
-from semantica.resolved_model import ResolvedModel
-from semantica_api.config import settings
-from semantica_api.connection_runtime import emitter_for_connection_type, get_connection_or_404, open_connection
-from semantica_api.db import get_db
-from semantica_api.deps import get_current_user, get_visible_model
-from semantica_api.duckdb_runtime import (
+from lexis._vendor.ossie import OssieDialect
+from lexis.demo_data import export_demo_dataset
+from lexis.parser import parse_ossie_yaml
+from lexis.resolved_model import ResolvedModel
+from lexis_api.config import settings
+from lexis_api.connection_runtime import emitter_for_connection_type, get_connection_or_404, open_connection
+from lexis_api.db import get_db
+from lexis_api.deps import get_current_user, get_visible_model
+from lexis_api.duckdb_runtime import (
     build_tpcds_demo_connection,
     catalog_name_for_upload,
     check_demo_compatible,
@@ -33,10 +33,10 @@ from semantica_api.duckdb_runtime import (
     run_timeseries_query,
     saved_upload,
 )
-from semantica_api.models import SemanticModelRecord, User
-from semantica_api.query_runtime import run_metric_query as run_metric_query_generic
-from semantica_api.query_runtime import run_timeseries_query as run_timeseries_query_generic
-from semantica_api.schemas import RunDuckDbOut
+from lexis_api.models import SemanticModelRecord, User
+from lexis_api.query_runtime import run_metric_query as run_metric_query_generic
+from lexis_api.query_runtime import run_timeseries_query as run_timeseries_query_generic
+from lexis_api.schemas import RunDuckDbOut
 
 router = APIRouter(prefix="/api/models", tags=["duckdb"])
 demo_router = APIRouter(prefix="/api/demo-dataset", tags=["duckdb"])

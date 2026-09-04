@@ -1,4 +1,4 @@
-"""Semantica CLI: `semantica transpile <model.yaml> --target <target> ...`"""
+"""Lexis CLI: `lexis transpile <model.yaml> --target <target> ...`"""
 
 import os
 import re
@@ -7,17 +7,17 @@ from pathlib import Path
 
 import click
 
-from semantica.dispatch import TARGETS
-from semantica.dispatch import transpile as dispatch_transpile
-from semantica.parser import load_ossie_document
-from semantica.resolved_model import ResolvedModel
+from lexis.dispatch import TARGETS
+from lexis.dispatch import transpile as dispatch_transpile
+from lexis.parser import load_ossie_document
+from lexis.resolved_model import ResolvedModel
 
 _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @click.group()
 def main() -> None:
-    """Semantica: transpile Ossie semantic models to warehouse SQL and BI/AI formats."""
+    """Lexis: transpile Ossie semantic models to warehouse SQL and BI/AI formats."""
 
 
 @main.command()
@@ -60,11 +60,10 @@ def export_demo_dataset_cmd(out: str, force: bool) -> None:
     "Demo dataset" run mode uses - to a real .duckdb file, so it can be re-uploaded
     (Run tab's Upload mode) or registered as a duckdb_file connection."""
     try:
-        from semantica.demo_data import export_demo_dataset
+        from lexis.demo_data import export_demo_dataset
     except ImportError as exc:
         raise click.UsageError(
-            'exporting the demo dataset requires duckdb - install with `pip install "semantica[dev]"` '
-            'or `"semantica[api]"`'
+            'exporting the demo dataset requires duckdb - install with `pip install "lexis-cli[mcp]"`'
         ) from exc
 
     try:
@@ -78,10 +77,10 @@ def export_demo_dataset_cmd(out: str, force: bool) -> None:
 @contextmanager
 def _demo_connection(model: ResolvedModel):  # noqa: ARG001 - model kept for signature symmetry with the other two connection helpers
     try:
-        from semantica.demo_data import build_tpcds_demo_connection
+        from lexis.demo_data import build_tpcds_demo_connection
     except ImportError as exc:
         raise click.UsageError(
-            '--demo requires duckdb - install with `pip install "semantica[mcp]"`'
+            '--demo requires duckdb - install with `pip install "lexis-cli[mcp]"`'
         ) from exc
 
     # Unlike the API's `/run` endpoint (which checks demo-compatibility per request,
@@ -103,7 +102,7 @@ def _duckdb_file_connection(model: ResolvedModel, path: str):
         import duckdb
     except ImportError as exc:
         raise click.UsageError(
-            '--duckdb-file requires duckdb - install with `pip install "semantica[mcp]"`'
+            '--duckdb-file requires duckdb - install with `pip install "lexis-cli[mcp]"`'
         ) from exc
 
     catalogs = {ds.source.split(".", 1)[0] for ds in model.datasets.values()}
@@ -139,7 +138,7 @@ def _snowflake_connection(
     except ImportError as exc:
         raise click.UsageError(
             '--snowflake-account requires snowflake-connector-python - install with '
-            '`pip install "semantica[mcp]"`'
+            '`pip install "lexis-cli[mcp]"`'
         ) from exc
 
     password = os.environ.get(password_env)
@@ -192,7 +191,7 @@ def mcp_serve(
         from mcp.server.stdio import stdio_server
     except ImportError as exc:
         raise click.UsageError(
-            'mcp-serve requires the `mcp` package - install with `pip install "semantica[mcp]"`'
+            'mcp-serve requires the `mcp` package - install with `pip install "lexis-cli[mcp]"`'
         ) from exc
 
     if sum(bool(x) for x in (demo, duckdb_file, snowflake_account)) != 1:
@@ -201,8 +200,8 @@ def mcp_serve(
     document = load_ossie_document(model_path)
     model = ResolvedModel.build(document.semantic_model[0])
 
-    from semantica import mcp_server as mcp_server_module
-    from semantica.transpilers.sql import DuckDBEmitter, SnowflakeEmitter
+    from lexis import mcp_server as mcp_server_module
+    from lexis.transpilers.sql import DuckDBEmitter, SnowflakeEmitter
 
     if demo:
         con_cm, emitter = _demo_connection(model), DuckDBEmitter()

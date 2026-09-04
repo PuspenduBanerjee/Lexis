@@ -1,11 +1,11 @@
 """Bundled TPC-DS-shaped demo dataset: small enough to build in-memory, real enough
 to exercise the join graph in `tests/fixtures/tpcds_semantic_model.yaml`. Shared by
-the CLI's `export-demo-dataset` command and semantica_api's "Demo dataset" run mode,
+the CLI's `export-demo-dataset` command and lexis_api's "Demo dataset" run mode,
 so there's exactly one copy of the CREATE/INSERT statements.
 
-Requires the optional `duckdb` dependency - not one of the core `semantica` package's
+Requires the optional `duckdb` dependency - not one of the core `lexis` package's
 own dependencies, since the CLI's `transpile` command doesn't need it. Importing this
-module (rather than just the `semantica` package) is what opts a caller into that
+module (rather than just the `lexis` package) is what opts a caller into that
 dependency; see `cli.py`'s lazy import in `export-demo-dataset`.
 """
 

@@ -16,7 +16,7 @@ export default function App() {
           <header className="app-header">
             <div className="app-header-inner page-container">
               <div className="row">
-                <h1>Semantica</h1>
+                <h1>Lexis</h1>
                 <nav className="row">
                   <Link to="/">Models</Link>
                   <Link to="/connections">Connections</Link>

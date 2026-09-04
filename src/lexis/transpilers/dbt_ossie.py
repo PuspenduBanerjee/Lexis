@@ -21,8 +21,8 @@ adjusts/validates rather than passing the document through verbatim:
 import json
 from dataclasses import dataclass
 
-from semantica._vendor.ossie import OssieDocument
-from semantica.transpilers.base import Artifact
+from lexis._vendor.ossie import OssieDocument
+from lexis.transpilers.base import Artifact
 
 DBT_SUPPORTED_OSSIE_VERSIONS = ("0.1.0", "0.1.1")
 DBT_EMIT_VERSION = "0.1.1"
@@ -49,7 +49,7 @@ def _source_shape_warnings(document: OssieDocument) -> list[str]:
     return warnings
 
 
-def emit_dbt_ossie_document(document: OssieDocument, filename: str = "osi/semantica_model.json") -> DbtOssieResult:
+def emit_dbt_ossie_document(document: OssieDocument, filename: str = "osi/lexis_model.json") -> DbtOssieResult:
     """Render `document` as a dbt-core-1.12+-compatible Ossie JSON artifact."""
     data = document.model_dump(by_alias=True, exclude_none=True, mode="json")
     data["version"] = DBT_EMIT_VERSION

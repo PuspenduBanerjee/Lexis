@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 import duckdb
 import pytest
 
-from semantica_api import connection_runtime
-from semantica_api.models import ConnectionType
+from lexis_api import connection_runtime
+from lexis_api.models import ConnectionType
 
 
 @pytest.fixture()
@@ -182,7 +182,7 @@ def test_run_connection_mode_without_connection_id_is_400(client_as, model_id):
 
 def test_snowflake_connect_uses_password_from_env_var():
     fake_con = MagicMock()
-    with patch("semantica_api.connection_runtime.snowflake.connector.connect", return_value=fake_con) as mock_connect:
+    with patch("lexis_api.connection_runtime.snowflake.connector.connect", return_value=fake_con) as mock_connect:
         os.environ["TEST_SF_PW"] = "s3cret"
         try:
             with connection_runtime.open_snowflake_connection(
@@ -210,7 +210,7 @@ def test_snowflake_connect_missing_env_var_is_400():
 
 
 def test_emitter_for_connection_type():
-    from semantica.transpilers.sql import DuckDBEmitter, SnowflakeEmitter
+    from lexis.transpilers.sql import DuckDBEmitter, SnowflakeEmitter
 
     assert isinstance(connection_runtime.emitter_for_connection_type(ConnectionType.DUCKDB_FILE), DuckDBEmitter)
     assert isinstance(connection_runtime.emitter_for_connection_type(ConnectionType.SNOWFLAKE), SnowflakeEmitter)

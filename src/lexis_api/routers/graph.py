@@ -3,13 +3,13 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from semantica.parser import parse_ossie_yaml
-from semantica.resolved_model import ResolvedModel
-from semantica_api.db import get_db
-from semantica_api.deps import get_owned_or_admin_model
-from semantica_api.graph_edit import apply_graph_edit
-from semantica_api.models import SemanticModelRecord
-from semantica_api.schemas import GraphEditIn, ModelDetailOut, to_detail_out
+from lexis.parser import parse_ossie_yaml
+from lexis.resolved_model import ResolvedModel
+from lexis_api.db import get_db
+from lexis_api.deps import get_owned_or_admin_model
+from lexis_api.graph_edit import apply_graph_edit
+from lexis_api.models import SemanticModelRecord
+from lexis_api.schemas import GraphEditIn, ModelDetailOut, to_detail_out
 
 router = APIRouter(prefix="/api/models", tags=["graph"])
 

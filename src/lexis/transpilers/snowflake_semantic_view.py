@@ -22,8 +22,8 @@ Expressions prefer the SNOWFLAKE dialect where the source model provides one,
 falling back to ANSI_SQL like every other target (`ResolvedModel.resolve_expression`).
 """
 
-from semantica._vendor.ossie import OssieAIContext, OssieAIContextObject, OssieDialect
-from semantica.resolved_model import ResolvedModel
+from lexis._vendor.ossie import OssieAIContext, OssieAIContextObject, OssieDialect
+from lexis.resolved_model import ResolvedModel
 
 
 def _quote_literal(text: str) -> str:

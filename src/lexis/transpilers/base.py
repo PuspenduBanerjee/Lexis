@@ -1,4 +1,4 @@
-"""Shared types for Semantica transpilers."""
+"""Shared types for Lexis transpilers."""
 
 from dataclasses import dataclass
 

@@ -1,18 +1,18 @@
 """Shared target-dispatch logic: pick the right emitter for a transpile request.
 
-Used by both the CLI (`cli.py`) and the web API (`semantica_api`) so the mapping from
+Used by both the CLI (`cli.py`) and the web API (`lexis_api`) so the mapping from
 `--target` to an emitter lives in exactly one place.
 """
 
 from dataclasses import dataclass
 
-from semantica._vendor.ossie import OssieDocument
-from semantica.resolved_model import ResolvedModel
-from semantica.transpilers.cube import emit_cube_yaml
-from semantica.transpilers.dbt_ossie import emit_dbt_ossie_document
-from semantica.transpilers.mcp import emit_mcp_tool_manifest
-from semantica.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
-from semantica.transpilers.sql import EMITTERS as SQL_EMITTERS
+from lexis._vendor.ossie import OssieDocument
+from lexis.resolved_model import ResolvedModel
+from lexis.transpilers.cube import emit_cube_yaml
+from lexis.transpilers.dbt_ossie import emit_dbt_ossie_document
+from lexis.transpilers.mcp import emit_mcp_tool_manifest
+from lexis.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
+from lexis.transpilers.sql import EMITTERS as SQL_EMITTERS
 
 TARGETS = [*SQL_EMITTERS.keys(), "cube", "dbt", "mcp", "snowflake_semantic_view"]
 

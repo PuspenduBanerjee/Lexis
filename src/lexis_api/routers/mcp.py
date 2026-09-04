@@ -26,15 +26,15 @@ from starlette.types import Receive, Scope, Send
 
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
-from semantica import mcp_server as mcp_server_module
-from semantica._vendor.ossie import OssieDialect
-from semantica.parser import parse_ossie_yaml
-from semantica.resolved_model import ResolvedModel
-from semantica_api.config import settings
-from semantica_api.connection_runtime import emitter_for_connection_type, open_connection
-from semantica_api.db import SessionLocal
-from semantica_api.deps import find_connection_or_404, find_model_or_404, find_user_or_401
-from semantica_api.query_runtime import run_metric_query as run_metric_query_generic
+from lexis import mcp_server as mcp_server_module
+from lexis._vendor.ossie import OssieDialect
+from lexis.parser import parse_ossie_yaml
+from lexis.resolved_model import ResolvedModel
+from lexis_api.config import settings
+from lexis_api.connection_runtime import emitter_for_connection_type, open_connection
+from lexis_api.db import SessionLocal
+from lexis_api.deps import find_connection_or_404, find_model_or_404, find_user_or_401
+from lexis_api.query_runtime import run_metric_query as run_metric_query_generic
 
 
 class _MCPModelEndpoint:

@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from semantica_api.connection_runtime import test_connection as run_connection_test
-from semantica_api.connection_runtime import validate_connection_config
-from semantica_api.db import get_db
-from semantica_api.deps import get_current_user, get_owned_or_admin_connection, get_visible_connection, require_editor_or_admin
-from semantica_api.models import Connection, ConnectionType, User
-from semantica_api.schemas import ConnectionIn, ConnectionOut, ConnectionTestOut, to_connection_out
+from lexis_api.connection_runtime import test_connection as run_connection_test
+from lexis_api.connection_runtime import validate_connection_config
+from lexis_api.db import get_db
+from lexis_api.deps import get_current_user, get_owned_or_admin_connection, get_visible_connection, require_editor_or_admin
+from lexis_api.models import Connection, ConnectionType, User
+from lexis_api.schemas import ConnectionIn, ConnectionOut, ConnectionTestOut, to_connection_out
 
 router = APIRouter(prefix="/api/connections", tags=["connections"])
 

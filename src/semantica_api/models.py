@@ -1,8 +1,8 @@
 """SQLAlchemy ORM models: User, Role, SemanticModelRecord, Connection.
 
 Named `SemanticModelRecord` (not `SemanticModel`) to avoid confusion with
-`semantica._vendor.osi.OSISemanticModel`, which shows up in the same import graph
-when routes parse `raw_yaml` back into a live OSI document.
+`semantica._vendor.ossie.OssieSemanticModel`, which shows up in the same import graph
+when routes parse `raw_yaml` back into a live Ossie document.
 """
 
 import enum

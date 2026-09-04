@@ -1,7 +1,7 @@
 """Prove the transpile route wires to the right emitter for each target.
 
 Transpilation *correctness* is already covered by the existing tests/test_*.py
-(test_sql_emitters.py, test_cube_emitter.py, test_dbt_osi.py, test_mcp.py) - these
+(test_sql_emitters.py, test_cube_emitter.py, test_dbt_ossie.py, test_mcp.py) - these
 tests only prove the route calls the right function with the right args.
 """
 

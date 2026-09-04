@@ -40,7 +40,7 @@ app.add_middleware(
 
 
 @app.exception_handler(ValidationError)
-def handle_osi_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
+def handle_ossie_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Local pre-commit guard: block commits that repoint the third_party/OSI submodule
-# to a local-only commit (see scripts/check_osi_submodule_pin.sh for the "why").
+# Local pre-commit guard: block commits that repoint the third_party/ossie submodule
+# to a local-only commit (see scripts/check_ossie_submodule_pin.sh for the "why").
 #
 # Not installed by default - git doesn't version .git/hooks, so this only runs once
 # a contributor opts in with:
@@ -12,8 +12,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # Gitlinks (submodule pointers) show up in `--name-only` like any other changed path
 # only when their recorded commit actually changed - skip the network fetch below on
 # the (common) case where this commit doesn't touch the submodule pin at all.
-if ! git diff --cached --name-only | grep -qx "third_party/OSI"; then
+if ! git diff --cached --name-only | grep -qx "third_party/ossie"; then
   exit 0
 fi
 
-scripts/check_osi_submodule_pin.sh
+scripts/check_ossie_submodule_pin.sh

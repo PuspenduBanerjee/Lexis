@@ -6,10 +6,10 @@ Used by both the CLI (`cli.py`) and the web API (`semantica_api`) so the mapping
 
 from dataclasses import dataclass
 
-from semantica._vendor.osi import OSIDocument
+from semantica._vendor.ossie import OssieDocument
 from semantica.resolved_model import ResolvedModel
 from semantica.transpilers.cube import emit_cube_yaml
-from semantica.transpilers.dbt_osi import emit_dbt_osi_document
+from semantica.transpilers.dbt_ossie import emit_dbt_ossie_document
 from semantica.transpilers.mcp import emit_mcp_tool_manifest
 from semantica.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
 from semantica.transpilers.sql import EMITTERS as SQL_EMITTERS
@@ -24,7 +24,7 @@ class TranspileResult:
 
 
 def transpile(
-    document: OSIDocument,
+    document: OssieDocument,
     model: ResolvedModel,
     target: str,
     metric: str | None = None,
@@ -43,7 +43,7 @@ def transpile(
     elif target == "cube":
         return TranspileResult(content=emit_cube_yaml(model), warnings=[])
     elif target == "dbt":
-        result = emit_dbt_osi_document(document)
+        result = emit_dbt_ossie_document(document)
         return TranspileResult(content=result.artifact.content, warnings=result.warnings)
     elif target == "mcp":
         return TranspileResult(content=emit_mcp_tool_manifest(model), warnings=[])

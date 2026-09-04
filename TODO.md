@@ -21,26 +21,26 @@ Deferred items, not blocking current functionality.
 ## YAML sub-view (Design tab)
 
 - **Comments are lost after any graph-based save.** `apply_graph_edit` re-serializes
-  via `OSIDocument.to_osi_yaml()` (`model_dump` + `yaml.dump`), which only knows about
+  via `OssieDocument.to_ossie_yaml()` (`model_dump` + `yaml.dump`), which only knows about
   the parsed data, not the original file's comments/formatting — so a model authored
   with `# ...` comments (like the bundled TPC-DS fixture) will have them stripped the
   first time it's saved via the Graph sub-view. Editing purely through the YAML
   sub-view without ever touching Graph avoids this (no round-trip through the parsed
   model happens until you actually save from there instead). Preserving comments
   would require a round-trip-preserving YAML library (e.g. `ruamel.yaml`) instead of
-  PyYAML — a real change to the vendored `to_osi_yaml()`, not attempted here.
+  PyYAML — a real change to the vendored `to_ossie_yaml()`, not attempted here.
 
 ## Graph canvas (Design tab)
 
 - **Persist node layout positions.** Currently auto-arranged via dagre on every
   load (`frontend/src/lib/layout.ts`) — dragging nodes works within a session but
   resets on reload/re-open. Two viable approaches when this is picked up:
-  - Store positions in OSI's own `custom_extensions` vendor-metadata escape hatch
-    (would need a new `SEMANTICA` entry added to the vendored `OSIVendor` enum in
-    `src/semantica/_vendor/osi/models.py` — a deliberate, disclosed deviation from
-    the verbatim upstream copy).
+  - Store positions in Ossie's own `custom_extensions` vendor-metadata escape hatch.
+    `vendor_name` is a plain `str` as of the Apache Ossie spec (no longer the closed
+    `OssieVendor` enum it once was), so this no longer needs a vendored-enum edit —
+    just use `vendor_name="SEMANTICA"` directly.
   - Store positions in a new column/table on `SemanticModelRecord`
-    (`src/semantica_api/models.py`), keyed by dataset name, separate from OSI content.
+    (`src/semantica_api/models.py`), keyed by dataset name, separate from Ossie content.
 - **Re-fit the viewport after adding a node.** `fitView` only runs on initial mount;
   a newly added dataset can land outside the visible viewport if the canvas has been
   panned/zoomed. Minor polish, not a functional bug (the node is still there and
@@ -80,11 +80,11 @@ Deferred items, not blocking current functionality.
   `DATE_TRUNC(expr, UNIT)` argument order means this method would silently produce
   wrong SQL for `BigQueryEmitter` - not currently guarded against, since nothing calls
   it that way today.
-- **Time field selection is manual and per-request**, not modeled in OSI itself -
+- **Time field selection is manual and per-request**, not modeled in Ossie itself -
   there's no concept of "the" canonical time dimension for a dataset/metric, so the
   UI just offers every field with `dimension.is_time: true` as a candidate
   (`lib/timeSeries.ts::timeFields`). A model with a well-known primary time field
-  could skip that picker if OSI/`custom_extensions` grew a way to mark one as default.
+  could skip that picker if Ossie/`custom_extensions` grew a way to mark one as default.
 - **Drill-down navigation is a single-level filter**, not a full multi-column
   breadcrumb WHERE clause - drilling twice (year → quarter → month) filters on the
   *immediately preceding* grain/period only (`filter_grain`/`filter_value`), which is

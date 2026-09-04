@@ -27,8 +27,8 @@ from starlette.types import Receive, Scope, Send
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 from semantica import mcp_server as mcp_server_module
-from semantica._vendor.osi import OSIDialect
-from semantica.parser import parse_osi_yaml
+from semantica._vendor.ossie import OssieDialect
+from semantica.parser import parse_ossie_yaml
 from semantica.resolved_model import ResolvedModel
 from semantica_api.config import settings
 from semantica_api.connection_runtime import emitter_for_connection_type, open_connection
@@ -64,13 +64,13 @@ class _MCPModelEndpoint:
                 await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(scope, receive, send)
                 return
 
-            document = parse_osi_yaml(record.raw_yaml)
+            document = parse_ossie_yaml(record.raw_yaml)
             model = ResolvedModel.build(document.semantic_model[0])
             emitter = emitter_for_connection_type(conn.type)
 
             def execute(metric: str, group_by: list[str] | None) -> dict:
                 metric_obj = model.metrics[metric]
-                metric_expr = model.resolve_expression(metric_obj.expression, OSIDialect.ANSI_SQL)
+                metric_expr = model.resolve_expression(metric_obj.expression, OssieDialect.ANSI_SQL)
                 referenced = set(model.referenced_datasets(metric_expr))
                 referenced |= {ref.split(".", 1)[0] for ref in (group_by or [])}
                 with open_connection(conn, model, referenced) as con:

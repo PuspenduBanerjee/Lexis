@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from semantica.parser import load_osi_document
+from semantica.parser import load_ossie_document
 from semantica.resolved_model import ResolvedModel
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -10,7 +10,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture
 def tpcds_document():
-    return load_osi_document(FIXTURES / "tpcds_semantic_model.yaml")
+    return load_ossie_document(FIXTURES / "tpcds_semantic_model.yaml")
 
 
 @pytest.fixture

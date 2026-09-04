@@ -3,8 +3,9 @@ Copyright 2026 Puspendu Banerjee
 
 This product includes software from the following third-party projects:
 
-Open Semantic Interchange (OSI) reference Python types
-  https://github.com/open-semantic-interchange/OSI
-  Copyright Open Semantic Interchange contributors
+Apache Ossie (incubating) reference Python types
+  https://github.com/apache/ossie
+  Formerly Open Semantic Interchange (OSI): https://github.com/open-semantic-interchange/OSI
+  Copyright The Apache Software Foundation
   Licensed under the Apache License, Version 2.0
-  Vendored at src/semantica/_vendor/osi/ (see NOTICE.md there for details)
+  Vendored at src/semantica/_vendor/ossie/ (see NOTICE.md there for details)

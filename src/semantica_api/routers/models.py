@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from semantica.parser import parse_osi_yaml
+from semantica.parser import parse_ossie_yaml
 from semantica.resolved_model import ResolvedModel
 from semantica_api.db import get_db
 from semantica_api.deps import get_current_user, get_owned_or_admin_model, get_visible_model, require_editor_or_admin
@@ -14,10 +14,10 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 
 
 def _resolved_model(record: SemanticModelRecord) -> ResolvedModel:
-    document = parse_osi_yaml(record.raw_yaml)
+    document = parse_ossie_yaml(record.raw_yaml)
     if len(document.semantic_model) != 1:
         raise ValueError(
-            f"OSI document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
+            f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
         )
     return ResolvedModel.build(document.semantic_model[0])
 
@@ -37,10 +37,10 @@ def create_model(
     db: Session = Depends(get_db),
     user: User = Depends(require_editor_or_admin),
 ) -> ModelDetailOut:
-    document = parse_osi_yaml(body.yaml_text)
+    document = parse_ossie_yaml(body.yaml_text)
     if len(document.semantic_model) != 1:
         raise ValueError(
-            f"OSI document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
+            f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
         )
     semantic_model = document.semantic_model[0]
     model = ResolvedModel.build(semantic_model)
@@ -67,10 +67,10 @@ def update_model(
     db: Session = Depends(get_db),
     record: SemanticModelRecord = Depends(get_owned_or_admin_model),
 ) -> ModelDetailOut:
-    document = parse_osi_yaml(body.yaml_text)
+    document = parse_ossie_yaml(body.yaml_text)
     if len(document.semantic_model) != 1:
         raise ValueError(
-            f"OSI document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
+            f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
         )
     model = ResolvedModel.build(document.semantic_model[0])
 

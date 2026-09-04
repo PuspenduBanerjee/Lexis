@@ -14,6 +14,7 @@ export interface FieldOut {
   description: string | null;
   expression: string | null;
   is_time: boolean;
+  datatype: string | null;
 }
 
 export interface DatasetOut {
@@ -35,6 +36,7 @@ export interface MetricOut {
   description: string | null;
   expression: string | null;
   referenced_datasets: string[];
+  datatype: string | null;
 }
 
 export interface ModelSummaryOut {

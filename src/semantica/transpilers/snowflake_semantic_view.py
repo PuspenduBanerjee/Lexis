@@ -1,19 +1,19 @@
-"""OSI -> Snowflake `CREATE SEMANTIC VIEW` DDL emitter.
+"""Ossie -> Snowflake `CREATE SEMANTIC VIEW` DDL emitter.
 
 Snowflake's native semantic view (Cortex Analyst) DDL groups a model into five
 clauses - TABLES, RELATIONSHIPS, FACTS, DIMENSIONS, METRICS - which line up
-closely with OSI's own datasets/relationships/fields/metrics:
+closely with Ossie's own datasets/relationships/fields/metrics:
 
-- Each OSIDataset becomes a TABLES entry (`<dataset> AS <source>`), carrying
+- Each OssieDataset becomes a TABLES entry (`<dataset> AS <source>`), carrying
   over PRIMARY KEY, WITH SYNONYMS (from ai_context), and COMMENT (description).
-- Each OSIRelationship becomes a RELATIONSHIPS entry using Snowflake's
+- Each OssieRelationship becomes a RELATIONSHIPS entry using Snowflake's
   `<alias> AS <from>(<cols>) REFERENCES <to>(<cols>)` shape.
-- OSI fields split into FACTS vs DIMENSIONS the same way the bundled TPC-DS
+- Ossie fields split into FACTS vs DIMENSIONS the same way the bundled TPC-DS
   fixture models it: a field carrying a `dimension` block is a grouping/
   filtering attribute (DIMENSIONS); a field with no `dimension` block is
   treated as a row-level numeric fact (FACTS), since Snowflake facts are the
   row-level building blocks aggregate METRICS are written against.
-- OSI semantic-model-level metrics become METRICS entries. Snowflake requires
+- Ossie semantic-model-level metrics become METRICS entries. Snowflake requires
   each metric to be qualified by a single table alias, so - as with the Cube
   emitter - a metric expression is attached to the first dataset it
   references (falling back to an arbitrary dataset if it references none).
@@ -22,7 +22,7 @@ Expressions prefer the SNOWFLAKE dialect where the source model provides one,
 falling back to ANSI_SQL like every other target (`ResolvedModel.resolve_expression`).
 """
 
-from semantica._vendor.osi import OSIAIContext, OSIAIContextObject, OSIDialect
+from semantica._vendor.ossie import OssieAIContext, OssieAIContextObject, OssieDialect
 from semantica.resolved_model import ResolvedModel
 
 
@@ -30,8 +30,8 @@ def _quote_literal(text: str) -> str:
     return text.replace("'", "''")
 
 
-def _synonyms_clause(ai_context: OSIAIContext | None) -> str:
-    if isinstance(ai_context, OSIAIContextObject) and ai_context.synonyms:
+def _synonyms_clause(ai_context: OssieAIContext | None) -> str:
+    if isinstance(ai_context, OssieAIContextObject) and ai_context.synonyms:
         rendered = ", ".join(f"'{_quote_literal(s)}'" for s in ai_context.synonyms)
         return f" WITH SYNONYMS ({rendered})"
     return ""
@@ -71,7 +71,7 @@ def _field_entries(model: ResolvedModel, *, dimensions: bool) -> list[str]:
             if (f.dimension is not None) != dimensions:
                 continue
             try:
-                expr = model.resolve_expression(f.expression, OSIDialect.SNOWFLAKE)
+                expr = model.resolve_expression(f.expression, OssieDialect.SNOWFLAKE)
             except Exception:
                 continue
             entry = f"{dataset_name}.{f.name} AS {expr}"
@@ -84,7 +84,7 @@ def _field_entries(model: ResolvedModel, *, dimensions: bool) -> list[str]:
 def _metric_entries(model: ResolvedModel) -> list[str]:
     entries = []
     for metric in model.metrics.values():
-        expr = model.resolve_expression(metric.expression, OSIDialect.SNOWFLAKE)
+        expr = model.resolve_expression(metric.expression, OssieDialect.SNOWFLAKE)
         referenced = model.referenced_datasets(expr)
         dataset_name = referenced[0] if referenced else next(iter(model.datasets))
         entry = f"{dataset_name}.{metric.name} AS {expr}"

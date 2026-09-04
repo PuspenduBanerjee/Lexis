@@ -1,8 +1,8 @@
-from semantica._vendor.osi import OSIDocument
+from semantica._vendor.ossie import OssieDocument
 
 
-def test_parses_tpcds_fixture_into_osi_document(tpcds_document):
-    assert isinstance(tpcds_document, OSIDocument)
+def test_parses_tpcds_fixture_into_ossie_document(tpcds_document):
+    assert isinstance(tpcds_document, OssieDocument)
     assert len(tpcds_document.semantic_model) == 1
 
     sm = tpcds_document.semantic_model[0]

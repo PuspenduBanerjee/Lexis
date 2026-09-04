@@ -1,6 +1,7 @@
 import duckdb
 import pytest
 
+from semantica._vendor.ossie import OssieDialect, OssieDialectExpression
 from semantica.transpilers.sql import BigQueryEmitter, DuckDBEmitter, SnowflakeEmitter
 
 
@@ -23,6 +24,28 @@ def test_bigquery_uses_backtick_quoting(tpcds_model):
     sql = BigQueryEmitter().emit_metric_query(tpcds_model, "total_sales")
     assert "`store_sales`" in sql
     assert '"store_sales"' not in sql
+
+
+def test_bigquery_prefers_dedicated_dialect_expression_when_present(tpcds_model):
+    # BigQueryEmitter.dialect is OssieDialect.BIGQUERY (Ossie added a dedicated
+    # BIGQUERY dialect) - a model-supplied BIGQUERY expression should be used
+    # instead of falling back to ANSI_SQL.
+    metric = tpcds_model.metrics["total_sales"]
+    bigquery_expr = metric.expression.model_copy(
+        update={
+            "dialects": [
+                *metric.expression.dialects,
+                OssieDialectExpression(
+                    dialect=OssieDialect.BIGQUERY,
+                    expression="SUM(store_sales.ss_ext_sales_price) /* bq-specific */",
+                ),
+            ]
+        }
+    )
+    tpcds_model.metrics["total_sales"] = metric.model_copy(update={"expression": bigquery_expr})
+
+    sql = BigQueryEmitter().emit_metric_query(tpcds_model, "total_sales")
+    assert "/* bq-specific */" in sql
 
 
 def test_snowflake_falls_back_to_ansi_sql_expression(tpcds_model):

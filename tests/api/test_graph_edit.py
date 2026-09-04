@@ -8,7 +8,7 @@ real usage, then check the merge preserves what the canvas has no control for.
 
 import pytest
 
-from semantica.parser import parse_osi_yaml
+from semantica.parser import parse_ossie_yaml
 
 
 @pytest.fixture()
@@ -120,7 +120,7 @@ def test_editing_field_expression_preserves_ai_context_and_dataset_metadata(clie
     )
     assert resp.status_code == 200
 
-    document = parse_osi_yaml(resp.json()["raw_yaml"])
+    document = parse_ossie_yaml(resp.json()["raw_yaml"])
     sm = document.semantic_model[0]
     ss_dataset = next(d for d in sm.datasets if d.name == "store_sales")
 
@@ -203,7 +203,7 @@ def test_editing_metric_expression_preserves_ai_context(client_as, model):
     )
     assert resp.status_code == 200
 
-    document = parse_osi_yaml(resp.json()["raw_yaml"])
+    document = parse_ossie_yaml(resp.json()["raw_yaml"])
     sm = document.semantic_model[0]
     edited = next(m for m in sm.metrics if m.name == "total_sales")
     assert edited.expression.dialects[0].expression == "SUM(store_sales.ss_ext_sales_price) * 1.1"

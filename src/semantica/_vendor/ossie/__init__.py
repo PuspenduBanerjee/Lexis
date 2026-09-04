@@ -1,42 +1,44 @@
-"""Vendored copy of the OSI reference Python types.
+"""Vendored copy of the Apache Ossie reference Python types.
 
-Source: https://github.com/open-semantic-interchange/OSI
-        python/src/osi (commit 056b5aadc555c0af123af26720324e940a7ee92d)
-License: Apache-2.0 (c) Open Semantic Interchange contributors
-Vendored because `osi-python` is not yet published to PyPI. Replace this
+Source: https://github.com/apache/ossie
+        python/src/ossie (commit ddb19f1b135a61c65603f4823a3526e2fab00cf1)
+License: Apache-2.0 (c) The Apache Software Foundation
+Vendored because `apache-ossie` is not yet published to PyPI. Replace this
 package with the real dependency once it is published.
 """
 
 from .models import (
-    OSIAIContext,
-    OSIAIContextObject,
-    OSICustomExtension,
-    OSIDataset,
-    OSIDialect,
-    OSIDialectExpression,
-    OSIDimension,
-    OSIDocument,
-    OSIExpression,
-    OSIField,
-    OSIMetric,
-    OSIRelationship,
-    OSISemanticModel,
-    OSIVendor,
+    OssieAIContext,
+    OssieAIContextObject,
+    OssieCustomExtension,
+    OssieDataset,
+    OssieDataType,
+    OssieDialect,
+    OssieDialectExpression,
+    OssieDimension,
+    OssieDocument,
+    OssieExpression,
+    OssieField,
+    OssieMetric,
+    OssieRelationship,
+    OssieSemanticModel,
+    OssieVendor,
 )
 
 __all__ = [
-    "OSIAIContext",
-    "OSIAIContextObject",
-    "OSICustomExtension",
-    "OSIDataset",
-    "OSIDialect",
-    "OSIDialectExpression",
-    "OSIDimension",
-    "OSIDocument",
-    "OSIExpression",
-    "OSIField",
-    "OSIMetric",
-    "OSIRelationship",
-    "OSISemanticModel",
-    "OSIVendor",
+    "OssieAIContext",
+    "OssieAIContextObject",
+    "OssieCustomExtension",
+    "OssieDataset",
+    "OssieDataType",
+    "OssieDialect",
+    "OssieDialectExpression",
+    "OssieDimension",
+    "OssieDocument",
+    "OssieExpression",
+    "OssieField",
+    "OssieMetric",
+    "OssieRelationship",
+    "OssieSemanticModel",
+    "OssieVendor",
 ]

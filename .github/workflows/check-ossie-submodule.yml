@@ -1,6 +1,6 @@
-name: Check OSI submodule pin
+name: Check Ossie submodule pin
 
-# We don't own https://github.com/open-semantic-interchange/OSI, so third_party/OSI
+# We don't own https://github.com/apache/ossie, so third_party/ossie
 # must always be pinned to a commit that really exists on its remote - never a local
 # commit made by accident inside the submodule. Local contributors get a fast
 # pre-commit check for this (see .githooks/pre-commit), but that hook is opt-in
@@ -20,5 +20,5 @@ jobs:
         with:
           submodules: true
 
-      - name: Verify third_party/OSI is pinned to a real upstream commit
-        run: scripts/check_osi_submodule_pin.sh
+      - name: Verify third_party/ossie is pinned to a real upstream commit
+        run: scripts/check_ossie_submodule_pin.sh

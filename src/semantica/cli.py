@@ -9,7 +9,7 @@ import click
 
 from semantica.dispatch import TARGETS
 from semantica.dispatch import transpile as dispatch_transpile
-from semantica.parser import load_osi_document
+from semantica.parser import load_ossie_document
 from semantica.resolved_model import ResolvedModel
 
 _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -17,7 +17,7 @@ _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 @click.group()
 def main() -> None:
-    """Semantica: transpile OSI semantic models to warehouse SQL and BI/AI formats."""
+    """Semantica: transpile Ossie semantic models to warehouse SQL and BI/AI formats."""
 
 
 @main.command()
@@ -32,8 +32,8 @@ def main() -> None:
 )
 @click.option("--out", type=click.Path(dir_okay=False), help="Write output to a file instead of stdout")
 def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[str, ...], out: str | None) -> None:
-    """Parse an OSI model and emit it in the given TARGET format."""
-    document = load_osi_document(model_path)
+    """Parse an Ossie model and emit it in the given TARGET format."""
+    document = load_ossie_document(model_path)
     semantic_model = document.semantic_model[0]
     model = ResolvedModel.build(semantic_model)
 
@@ -198,7 +198,7 @@ def mcp_serve(
     if sum(bool(x) for x in (demo, duckdb_file, snowflake_account)) != 1:
         raise click.UsageError("pass exactly one of --demo, --duckdb-file, or --snowflake-account")
 
-    document = load_osi_document(model_path)
+    document = load_ossie_document(model_path)
     model = ResolvedModel.build(document.semantic_model[0])
 
     from semantica import mcp_server as mcp_server_module

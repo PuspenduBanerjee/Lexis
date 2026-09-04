@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "semantica"
 version = "0.1.0"
-description = "OSI-native semantic layer: author models once, transpile to warehouse-native SQL and BI/AI consumer formats"
+description = "Ossie-native semantic layer: author models once, transpile to warehouse-native SQL and BI/AI consumer formats"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

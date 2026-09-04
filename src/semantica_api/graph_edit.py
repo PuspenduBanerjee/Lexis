@@ -1,24 +1,24 @@
-"""Apply structured graph-canvas edits onto an existing parsed OSIDocument.
+"""Apply structured graph-canvas edits onto an existing parsed OssieDocument.
 
-The canvas only exposes a subset of what OSI datasets/fields/relationships/metrics
+The canvas only exposes a subset of what Ossie datasets/fields/relationships/metrics
 can carry (name, source, ANSI_SQL expression, description). Anything else an existing
 entity has - ai_context, custom_extensions, primary_key/unique_keys, non-ANSI_SQL
 dialect expressions - must survive a save untouched. So this merges the incoming
 structured edit onto the existing parsed pydantic objects (matching by name) rather
-than rebuilding OSIDataset/OSIField/OSIRelationship/OSIMetric from scratch, and
-re-serializes via the existing OSIDocument.to_osi_yaml() - no separate YAML
+than rebuilding OssieDataset/OssieField/OssieRelationship/OssieMetric from scratch, and
+re-serializes via the existing OssieDocument.to_ossie_yaml() - no separate YAML
 generation logic.
 """
 
-from semantica._vendor.osi import (
-    OSIDataset,
-    OSIDialect,
-    OSIDialectExpression,
-    OSIDocument,
-    OSIExpression,
-    OSIField,
-    OSIMetric,
-    OSIRelationship,
+from semantica._vendor.ossie import (
+    OssieDataset,
+    OssieDialect,
+    OssieDialectExpression,
+    OssieDocument,
+    OssieExpression,
+    OssieField,
+    OssieMetric,
+    OssieRelationship,
 )
 from semantica_api.schemas import (
     GraphDatasetIn,
@@ -29,39 +29,39 @@ from semantica_api.schemas import (
 )
 
 
-def _merge_field(existing: OSIField | None, field_in: GraphFieldIn) -> OSIField:
+def _merge_field(existing: OssieField | None, field_in: GraphFieldIn) -> OssieField:
     other_dialects = (
-        [d for d in existing.expression.dialects if d.dialect != OSIDialect.ANSI_SQL] if existing else []
+        [d for d in existing.expression.dialects if d.dialect != OssieDialect.ANSI_SQL] if existing else []
     )
-    expression = OSIExpression(
-        dialects=[OSIDialectExpression(dialect=OSIDialect.ANSI_SQL, expression=field_in.expression), *other_dialects]
+    expression = OssieExpression(
+        dialects=[OssieDialectExpression(dialect=OssieDialect.ANSI_SQL, expression=field_in.expression), *other_dialects]
     )
     if existing is not None:
         return existing.model_copy(update={"expression": expression, "description": field_in.description})
-    return OSIField(name=field_in.name, expression=expression, description=field_in.description)
+    return OssieField(name=field_in.name, expression=expression, description=field_in.description)
 
 
-def _merge_dataset(existing: OSIDataset | None, dataset_in: GraphDatasetIn) -> OSIDataset:
+def _merge_dataset(existing: OssieDataset | None, dataset_in: GraphDatasetIn) -> OssieDataset:
     existing_fields = {f.name: f for f in (existing.fields or [])} if existing else {}
     fields = [_merge_field(existing_fields.get(f.name), f) for f in dataset_in.fields]
     if existing is not None:
         return existing.model_copy(update={"source": dataset_in.source, "fields": fields})
-    return OSIDataset(name=dataset_in.name, source=dataset_in.source, fields=fields)
+    return OssieDataset(name=dataset_in.name, source=dataset_in.source, fields=fields)
 
 
-def _merge_metric(existing: OSIMetric | None, metric_in: GraphMetricIn) -> OSIMetric:
+def _merge_metric(existing: OssieMetric | None, metric_in: GraphMetricIn) -> OssieMetric:
     other_dialects = (
-        [d for d in existing.expression.dialects if d.dialect != OSIDialect.ANSI_SQL] if existing else []
+        [d for d in existing.expression.dialects if d.dialect != OssieDialect.ANSI_SQL] if existing else []
     )
-    expression = OSIExpression(
-        dialects=[OSIDialectExpression(dialect=OSIDialect.ANSI_SQL, expression=metric_in.expression), *other_dialects]
+    expression = OssieExpression(
+        dialects=[OssieDialectExpression(dialect=OssieDialect.ANSI_SQL, expression=metric_in.expression), *other_dialects]
     )
     if existing is not None:
         return existing.model_copy(update={"expression": expression, "description": metric_in.description})
-    return OSIMetric(name=metric_in.name, expression=expression, description=metric_in.description)
+    return OssieMetric(name=metric_in.name, expression=expression, description=metric_in.description)
 
 
-def _merge_relationship(existing: OSIRelationship | None, rel_in: GraphRelationshipIn) -> OSIRelationship:
+def _merge_relationship(existing: OssieRelationship | None, rel_in: GraphRelationshipIn) -> OssieRelationship:
     updates = {
         "from_dataset": rel_in.from_dataset,
         "to": rel_in.to,
@@ -70,7 +70,7 @@ def _merge_relationship(existing: OSIRelationship | None, rel_in: GraphRelations
     }
     if existing is not None:
         return existing.model_copy(update=updates)
-    return OSIRelationship(name=rel_in.name, **updates)
+    return OssieRelationship(name=rel_in.name, **updates)
 
 
 def _check_unique(names: list[str], kind: str) -> None:
@@ -81,8 +81,8 @@ def _check_unique(names: list[str], kind: str) -> None:
         seen.add(name)
 
 
-def apply_graph_edit(document: OSIDocument, edit: GraphEditIn) -> OSIDocument:
-    """Return a new OSIDocument with datasets/relationships/metrics replaced by `edit`."""
+def apply_graph_edit(document: OssieDocument, edit: GraphEditIn) -> OssieDocument:
+    """Return a new OssieDocument with datasets/relationships/metrics replaced by `edit`."""
     semantic_model = document.semantic_model[0]
 
     _check_unique([d.name for d in edit.datasets], "dataset")

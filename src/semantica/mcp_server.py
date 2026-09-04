@@ -61,7 +61,7 @@ ExecuteMetric = Callable[[str, list[str] | None], dict]
 
 
 def build_server(model: ResolvedModel, execute: ExecuteMetric, name: str | None = None) -> Server:
-    """Build an MCP `Server` with one `query_<metric>` tool per OSI metric, dispatching
+    """Build an MCP `Server` with one `query_<metric>` tool per Ossie metric, dispatching
     tool calls to `execute(metric_name, group_by)`."""
     tools = [types.Tool(**spec) for spec in build_metric_tool_specs(model)]
     server: Server = Server(name or model.semantic_model.name)

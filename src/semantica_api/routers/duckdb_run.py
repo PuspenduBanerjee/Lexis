@@ -16,9 +16,9 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
-from semantica._vendor.osi import OSIDialect
+from semantica._vendor.ossie import OssieDialect
 from semantica.demo_data import export_demo_dataset
-from semantica.parser import parse_osi_yaml
+from semantica.parser import parse_ossie_yaml
 from semantica.resolved_model import ResolvedModel
 from semantica_api.config import settings
 from semantica_api.connection_runtime import emitter_for_connection_type, get_connection_or_404, open_connection
@@ -74,14 +74,14 @@ def run_duckdb(
     db: Session = Depends(get_db),
     record: SemanticModelRecord = Depends(get_visible_model),
 ) -> RunDuckDbOut:
-    document = parse_osi_yaml(record.raw_yaml)
+    document = parse_ossie_yaml(record.raw_yaml)
     model = ResolvedModel.build(document.semantic_model[0])
     group_by: list[str] = json.loads(group_by_json)
 
     metric_obj = model.metrics.get(metric)
     if metric_obj is None:
         raise HTTPException(status_code=422, detail=f"unknown metric {metric!r}")
-    metric_expr = model.resolve_expression(metric_obj.expression, OSIDialect.ANSI_SQL)
+    metric_expr = model.resolve_expression(metric_obj.expression, OssieDialect.ANSI_SQL)
     referenced = set(model.referenced_datasets(metric_expr))
     referenced |= {ref.split(".", 1)[0] for ref in group_by}
 
@@ -126,7 +126,7 @@ def run_duckdb_timeseries(
     """Group a metric by DATE_TRUNC(grain, time_field) - the query behind the Design
     tab's and Run tab's drill-down/roll-up time-series view. `filter_grain`/
     `filter_value` restrict to one coarser period, for drilling into it."""
-    document = parse_osi_yaml(record.raw_yaml)
+    document = parse_ossie_yaml(record.raw_yaml)
     model = ResolvedModel.build(document.semantic_model[0])
 
     metric_obj = model.metrics.get(metric)
@@ -135,7 +135,7 @@ def run_duckdb_timeseries(
     if time_dataset not in model.datasets:
         raise HTTPException(status_code=422, detail=f"unknown dataset {time_dataset!r}")
 
-    metric_expr = model.resolve_expression(metric_obj.expression, OSIDialect.ANSI_SQL)
+    metric_expr = model.resolve_expression(metric_obj.expression, OssieDialect.ANSI_SQL)
     referenced = set(model.referenced_datasets(metric_expr)) | {time_dataset}
 
     if mode == "demo":

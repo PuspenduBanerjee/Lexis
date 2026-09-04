@@ -64,12 +64,12 @@ export function ModelListPage() {
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="field-row">
-            <label>OSI YAML</label>
+            <label>Ossie YAML</label>
             <textarea
               rows={10}
               value={yamlText}
               onChange={(e) => setYamlText(e.target.value)}
-              placeholder="Paste an OSI YAML document here"
+              placeholder="Paste an Ossie YAML document here"
             />
           </div>
           <button

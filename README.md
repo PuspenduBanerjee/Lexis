@@ -1,9 +1,9 @@
 # Semantica
 
-An open, [OSI](https://github.com/open-semantic-interchange/OSI)-native semantic layer:
-author a data model once in OSI YAML, then transpile it to warehouse-native SQL
+An open, [Apache Ossie](https://github.com/apache/ossie)-native semantic layer:
+author a data model once in Ossie YAML, then transpile it to warehouse-native SQL
 (Snowflake, BigQuery, Databricks, DuckDB, Postgres) and to formats BI/AI consumers
-understand (Cube.js schema, dbt-core OSI documents, MCP tool manifests grounded in
+understand (Cube.js schema, dbt-core Ossie documents, MCP tool manifests grounded in
 `ai_context`).
 
 Two ways to use it: a `semantica` CLI/library, and a web UI (FastAPI + React) with a
@@ -12,10 +12,10 @@ persisted multi-model workspace, role-based access, and live DuckDB query execut
 See [docs/architecture-plan.md](docs/architecture-plan.md) for the full architecture
 writeup and design rationale.
 
-This repo tracks the upstream [OSI spec](https://github.com/open-semantic-interchange/OSI)
-as a git submodule at `third_party/OSI` (schema, converters docs, examples) so our
-vendored model classes (`src/semantica/_vendor/osi/`) can be kept in sync with it -
-see "Keeping OSI in sync" below.
+This repo tracks the upstream [Ossie spec](https://github.com/apache/ossie)
+as a git submodule at `third_party/ossie` (schema, converters docs, examples) so our
+vendored model classes (`src/semantica/_vendor/ossie/`) can be kept in sync with it -
+see "Keeping Ossie in sync" below.
 
 ## Quickstart: CLI
 
@@ -106,7 +106,7 @@ Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `SEMANTICA_API_P
 `SEMANTICA_WEB_PORT` env vars.
 
 Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
-role, paste an OSI YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
+role, paste an Ossie YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
 create a model, then use the **Browse** / **Design** / **Transpile** / **Test Metrics**
 tabs on the model's page (a sample model is preloaded automatically on first run, so
 there's already something to open). "Design" is a node-graph canvas (owner/admin only)
@@ -240,7 +240,7 @@ The time-series endpoint (`/api/models/{id}/run/timeseries`) takes the same
 `time_field`/`grain`/`filter_grain`/`filter_value` form fields. For a
 `duckdb_file` connection, every dataset referenced by the metric/group-by must
 share one catalog name (the first `.`-segment of the dataset's `source` in the
-OSI model) - the file is attached under that name, mirroring how the demo/upload
+Ossie model) - the file is attached under that name, mirroring how the demo/upload
 modes work. Snowflake has no such restriction: `source` is used as-is, so it can
 reference any `database.schema.table` the connection's role can see.
 
@@ -337,7 +337,7 @@ pytest
 ## Project structure
 
 ```text
-src/semantica/          core library: OSI parsing, join-graph resolution, transpilers, CLI
+src/semantica/          core library: Ossie parsing, join-graph resolution, transpilers, CLI
 src/semantica_api/      FastAPI backend (models, RBAC, transpile route, live query execution
                         against demo/upload DuckDB or a persisted connections.py connection)
 frontend/                Vite + React + TypeScript SPA
@@ -346,44 +346,44 @@ tests/api/              backend API tests
 docs/architecture-plan.md   architecture decisions and design rationale
 docker/                 Dockerfiles + nginx config for the two images (see docker-compose.yml)
 scripts/docker-build.sh   builds both images directly with `docker build`, no compose needed
-third_party/OSI/        git submodule: upstream OSI spec/schema/converters docs/examples
+third_party/ossie/      git submodule: upstream Ossie spec/schema/converters docs/examples
 ```
 
-## Keeping OSI in sync
+## Keeping Ossie in sync
 
-`src/semantica/_vendor/osi/models.py` is a vendored (not pip-installed - `osi-python`
+`src/semantica/_vendor/ossie/models.py` is a vendored (not pip-installed - `apache-ossie`
 isn't on PyPI yet) copy of upstream's pydantic model classes, and `tests/fixtures/*.yaml`
 are meant to conform to upstream's JSON Schema. Both are checked against the
-`third_party/OSI` submodule by `tests/test_osi_spec_conformance.py`, so a submodule bump
+`third_party/ossie` submodule by `tests/test_ossie_spec_conformance.py`, so a submodule bump
 that changes either will fail loudly instead of silently drifting.
 
-To pick up an upstream OSI change:
+To pick up an upstream Ossie change:
 
 ```bash
-git submodule update --remote third_party/OSI   # bump the submodule to upstream's latest main
-scripts/sync_osi_vendor.sh                       # re-vendor models.py + refresh NOTICE.md's commit pin
-pytest tests/test_osi_spec_conformance.py tests/test_parser.py tests/test_resolved_model.py
+git submodule update --remote third_party/ossie   # bump the submodule to upstream's latest main
+scripts/sync_ossie_vendor.sh                        # re-vendor models.py + refresh NOTICE.md's commit pin
+pytest tests/test_ossie_spec_conformance.py tests/test_parser.py tests/test_resolved_model.py
 ```
 
-`scripts/sync_osi_vendor.sh` only overwrites `models.py` verbatim; `__init__.py` is
+`scripts/sync_ossie_vendor.sh` only overwrites `models.py` verbatim; `__init__.py` is
 hand-adapted (relative import, own docstring) and the script just warns if a new
 upstream class/name isn't re-exported yet, so it needs a manual one-line addition in
 that case.
 
-`third_party/OSI` is upstream's repo, not ours - never edit files inside it directly,
+`third_party/ossie` is upstream's repo, not ours - never edit files inside it directly,
 and never commit local changes to it (we have no push access, and a submodule pointer
 referencing a commit we made locally but never pushed would break for everyone else
 who clones this repo). Its `.gitmodules` entry sets `ignore = dirty`, so `git status`/
 `git diff` won't even show local edits inside it; the only supported way to move it
-forward is `git submodule update --remote third_party/OSI` followed by
-`scripts/sync_osi_vendor.sh`.
+forward is `git submodule update --remote third_party/ossie` followed by
+`scripts/sync_ossie_vendor.sh`.
 
 This is also enforced by two automated checks, both running
-`scripts/check_osi_submodule_pin.sh` (fails if `third_party/OSI` is pinned to a commit
+`scripts/check_ossie_submodule_pin.sh` (fails if `third_party/ossie` is pinned to a commit
 that isn't reachable from any of its remote branches - i.e. a local-only commit made by
 accidentally `cd`-ing into the submodule and committing there):
 
-- **CI** (`.github/workflows/check-osi-submodule.yml`) runs it on every push/PR - the
+- **CI** (`.github/workflows/check-ossie-submodule.yml`) runs it on every push/PR - the
   real backstop, since it can't be skipped.
 - **A local pre-commit hook** (`.githooks/pre-commit`) runs it before any commit that
   touches the submodule pin, so you find out before pushing rather than after CI fails.

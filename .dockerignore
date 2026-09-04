@@ -9,6 +9,7 @@
 .venv
 tests
 docs
+third_party
 TODO.md
 Notess
 semantica_dev.db

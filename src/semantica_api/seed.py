@@ -6,7 +6,7 @@ from importlib import resources
 
 from sqlalchemy.orm import Session
 
-from semantica.parser import parse_osi_yaml
+from semantica.parser import parse_ossie_yaml
 from semantica_api.models import Role, SemanticModelRecord, User
 
 _SAMPLE_MODEL_OWNER_ID = 2  # editor1
@@ -31,7 +31,7 @@ def seed_sample_model(db: Session) -> None:
     yaml_text = (
         resources.files("semantica_api.sample_data") / "tpcds_semantic_model.yaml"
     ).read_text()
-    semantic_model = parse_osi_yaml(yaml_text).semantic_model[0]
+    semantic_model = parse_ossie_yaml(yaml_text).semantic_model[0]
     db.add(
         SemanticModelRecord(
             name=semantic_model.name,

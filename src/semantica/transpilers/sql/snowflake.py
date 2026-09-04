@@ -1,8 +1,8 @@
-from semantica._vendor.osi import OSIDialect
+from semantica._vendor.ossie import OssieDialect
 
 from .base import SqlDialectEmitter
 
 
 class SnowflakeEmitter(SqlDialectEmitter):
-    dialect = OSIDialect.SNOWFLAKE
+    dialect = OssieDialect.SNOWFLAKE
     quote_char = '"'

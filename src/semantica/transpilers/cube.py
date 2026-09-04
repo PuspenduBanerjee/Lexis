@@ -1,7 +1,7 @@
-"""OSI -> Cube.js schema (YAML) emitter.
+"""Ossie -> Cube.js schema (YAML) emitter.
 
 Cube models data as a set of "cubes" (one per table) with dimensions/measures/joins,
-so the mapping from OSI is direct for datasets/fields/relationships. OSI metrics are
+so the mapping from Ossie is direct for datasets/fields/relationships. Ossie metrics are
 looser (arbitrary multi-dialect aggregate SQL, possibly spanning multiple datasets) than
 Cube measures (per-cube, typically `type: sum/avg/...` over a single column), so:
 
@@ -18,7 +18,7 @@ import re
 
 import yaml
 
-from semantica._vendor.osi import OSIDialect
+from semantica._vendor.ossie import OssieDialect
 from semantica.resolved_model import ResolvedModel
 
 _SIMPLE_AGGREGATE_RE = re.compile(
@@ -40,10 +40,10 @@ def _cube_dimensions(model: ResolvedModel, dataset_name: str) -> list[dict]:
     dimensions = []
     for f in dataset.fields or []:
         try:
-            expr = model.resolve_expression(f.expression, OSIDialect.ANSI_SQL)
+            expr = model.resolve_expression(f.expression, OssieDialect.ANSI_SQL)
         except Exception:
             continue
-        is_time = bool(f.dimension and f.dimension.is_time)
+        is_time = f.is_time_dimension()
         dimensions.append(
             {
                 "name": f.name,
@@ -82,7 +82,7 @@ def emit_cube_yaml(model: ResolvedModel) -> str:
         }
 
     for metric in model.metrics.values():
-        expr = model.resolve_expression(metric.expression, OSIDialect.ANSI_SQL)
+        expr = model.resolve_expression(metric.expression, OssieDialect.ANSI_SQL)
         match = _SIMPLE_AGGREGATE_RE.match(expr.strip())
         if match:
             func, dataset_name, column = match.groups()

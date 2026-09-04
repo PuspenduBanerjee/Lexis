@@ -8,7 +8,7 @@ export function DatasetBrowser({ model }: { model: ModelDetailOut }) {
         {model.datasets.map((d) => (
           <div className="card" key={d.name}>
             <strong>{d.name}</strong> <span className="muted">({d.source})</span>
-            <table>
+            <table className="data-table">
               <tbody>
                 {d.fields.map((f) => (
                   <tr key={f.name}>
@@ -26,7 +26,7 @@ export function DatasetBrowser({ model }: { model: ModelDetailOut }) {
 
       <section>
         <h3>Relationships</h3>
-        <table>
+        <table className="data-table">
           <thead>
             <tr>
               <th>Name</th>
@@ -52,7 +52,7 @@ export function DatasetBrowser({ model }: { model: ModelDetailOut }) {
 
       <section>
         <h3>Metrics</h3>
-        <table>
+        <table className="data-table">
           <tbody>
             {model.metrics.map((m) => (
               <tr key={m.name}>

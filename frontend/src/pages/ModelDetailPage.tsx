@@ -66,7 +66,7 @@ export function ModelDetailPage() {
           Transpile
         </button>
         <button className={tab === "run" ? "active" : ""} onClick={() => setTab("run")}>
-          Run DuckDB
+          Test Metrics
         </button>
       </div>
 

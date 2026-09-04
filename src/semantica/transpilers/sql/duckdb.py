@@ -1,8 +1,8 @@
-from semantica._vendor.osi import OSIDialect
+from semantica._vendor.ossie import OssieDialect
 
 from .base import SqlDialectEmitter
 
 
 class DuckDBEmitter(SqlDialectEmitter):
-    dialect = OSIDialect.ANSI_SQL
+    dialect = OssieDialect.ANSI_SQL
     quote_char = '"'

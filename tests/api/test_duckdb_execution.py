@@ -77,3 +77,23 @@ def test_upload_mode_wrong_schema_is_400_not_500(client_as, model_id, tmp_path):
             files={"file": ("wrong.duckdb", f, "application/octet-stream")},
         )
     assert resp.status_code == 400
+
+
+def test_export_demo_dataset_downloads_a_real_duckdb_file(client_as, model_id, tmp_path):
+    """The exported file should be usable as an upload-mode source and produce the
+    same result as running directly against the in-memory demo dataset."""
+    resp = client_as("viewer").get("/api/demo-dataset/export")
+    assert resp.status_code == 200
+    assert resp.headers["content-disposition"] == 'attachment; filename="tpcds-demo.duckdb"'
+
+    db_path = tmp_path / "exported.duckdb"
+    db_path.write_bytes(resp.content)
+
+    with open(db_path, "rb") as f:
+        run_resp = client_as("viewer").post(
+            f"/api/models/{model_id}/run",
+            data={"mode": "upload", "metric": "total_sales", "group_by_json": "[]"},
+            files={"file": ("exported.duckdb", f, "application/octet-stream")},
+        )
+    assert run_resp.status_code == 200
+    assert run_resp.json()["rows"] == [[260.0]]

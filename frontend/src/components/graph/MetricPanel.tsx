@@ -1,29 +1,63 @@
-import type { MetricOut, ModelDetailOut } from "../../api/types";
-import { TimeSeriesPanel } from "../TimeSeriesPanel";
+import type { GraphMetricIn, ModelDetailOut } from "../../api/types";
 import { timeFields } from "../../lib/timeSeries";
+import { TimeSeriesPanel } from "../TimeSeriesPanel";
 
-export function MetricPanel({ metric, model }: { metric: MetricOut; model: ModelDetailOut }) {
+interface Props {
+  metric: GraphMetricIn;
+  model: ModelDetailOut;
+  onChange: (updated: GraphMetricIn) => void;
+  onDelete: () => void;
+}
+
+export function MetricPanel({ metric, model, onChange, onDelete }: Props) {
+  // The time-series preview queries this metric by name against the live API, so
+  // it only works once the metric (and any expression edits) has actually been
+  // saved - not for a brand-new node still sitting unsaved in the canvas.
+  const isSaved = model.metrics.some((m) => m.name === metric.name);
+
   return (
     <div className="card stack">
-      <strong>{metric.name}</strong>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <strong>{metric.name}</strong>
+        <button onClick={onDelete}>Delete metric</button>
+      </div>
       <p className="muted" style={{ margin: 0 }}>
-        Metrics are read-only on the canvas — edit via the YAML sub-view.
+        Name can't be changed after creation.
       </p>
-      {metric.description && <p style={{ margin: 0 }}>{metric.description}</p>}
+
       <div className="field-row">
-        <label>Expression (ANSI_SQL)</label>
-        <pre>{metric.expression ?? "(no expression available)"}</pre>
+        <label>
+          Expression (ANSI_SQL)
+          <textarea
+            rows={2}
+            value={metric.expression}
+            onChange={(e) => onChange({ ...metric, expression: e.target.value })}
+          />
+        </label>
       </div>
+
       <div className="field-row">
-        <label>References</label>
-        <div>{metric.referenced_datasets.join(", ") || "(none detected)"}</div>
+        <label>
+          Description
+          <input
+            type="text"
+            value={metric.description ?? ""}
+            onChange={(e) => onChange({ ...metric, description: e.target.value || null })}
+          />
+        </label>
       </div>
-      {timeFields(model).length > 0 && (
-        <div className="field-row">
-          <label>Time-series preview (bundled demo dataset)</label>
-          <TimeSeriesPanel model={model} mode="demo" file={null} fixedMetric={metric.name} />
-        </div>
-      )}
+
+      {timeFields(model).length > 0 &&
+        (isSaved ? (
+          <div className="field-row">
+            <label>Time-series preview (bundled demo dataset, reflects the last saved version)</label>
+            <TimeSeriesPanel model={model} mode="demo" file={null} fixedMetric={metric.name} />
+          </div>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>
+            Save the graph to see this metric's time-series preview.
+          </p>
+        ))}
     </div>
   );
 }

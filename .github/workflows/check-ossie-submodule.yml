@@ -1,0 +1,24 @@
+name: Check Ossie submodule pin
+
+# We don't own https://github.com/apache/ossie, so third_party/ossie
+# must always be pinned to a commit that really exists on its remote - never a local
+# commit made by accident inside the submodule. Local contributors get a fast
+# pre-commit check for this (see .githooks/pre-commit), but that hook is opt-in
+# (git doesn't version .git/hooks), so this workflow is the real backstop: it runs
+# for every push/PR regardless of local setup.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  check-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Verify third_party/ossie is pinned to a real upstream commit
+        run: scripts/check_ossie_submodule_pin.sh

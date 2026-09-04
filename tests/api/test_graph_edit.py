@@ -8,7 +8,7 @@ real usage, then check the merge preserves what the canvas has no control for.
 
 import pytest
 
-from semantica.parser import parse_osi_yaml
+from semantica.parser import parse_ossie_yaml
 
 
 @pytest.fixture()
@@ -44,6 +44,13 @@ def _relationships_payload(model_detail):
     ]
 
 
+def _metrics_payload(model_detail):
+    return [
+        {"name": m["name"], "expression": m["expression"], "description": m["description"]}
+        for m in model_detail["metrics"]
+    ]
+
+
 def test_add_new_dataset_and_field(client_as, model):
     datasets = _datasets_payload(model)
     datasets.append(
@@ -55,7 +62,7 @@ def test_add_new_dataset_and_field(client_as, model):
     )
     resp = client_as("editor").put(
         f"/api/models/{model['id']}/graph",
-        json={"datasets": datasets, "relationships": _relationships_payload(model)},
+        json={"datasets": datasets, "relationships": _relationships_payload(model), "metrics": _metrics_payload(model)},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -78,7 +85,8 @@ def test_add_new_relationship(client_as, model):
         }
     )
     resp = client_as("editor").put(
-        f"/api/models/{model['id']}/graph", json={"datasets": datasets, "relationships": relationships}
+        f"/api/models/{model['id']}/graph",
+        json={"datasets": datasets, "relationships": relationships, "metrics": _metrics_payload(model)},
     )
     assert resp.status_code == 200
     names = {r["name"] for r in resp.json()["relationships"]}
@@ -91,7 +99,8 @@ def test_removing_a_dataset_from_payload_removes_it(client_as, model):
     relationships = [r for r in _relationships_payload(model) if "store" not in (r["from_dataset"], r["to"])]
 
     resp = client_as("editor").put(
-        f"/api/models/{model['id']}/graph", json={"datasets": datasets, "relationships": relationships}
+        f"/api/models/{model['id']}/graph",
+        json={"datasets": datasets, "relationships": relationships, "metrics": _metrics_payload(model)},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -107,11 +116,11 @@ def test_editing_field_expression_preserves_ai_context_and_dataset_metadata(clie
 
     resp = client_as("editor").put(
         f"/api/models/{model['id']}/graph",
-        json={"datasets": datasets, "relationships": _relationships_payload(model)},
+        json={"datasets": datasets, "relationships": _relationships_payload(model), "metrics": _metrics_payload(model)},
     )
     assert resp.status_code == 200
 
-    document = parse_osi_yaml(resp.json()["raw_yaml"])
+    document = parse_ossie_yaml(resp.json()["raw_yaml"])
     sm = document.semantic_model[0]
     ss_dataset = next(d for d in sm.datasets if d.name == "store_sales")
 
@@ -126,7 +135,8 @@ def test_editing_field_expression_preserves_ai_context_and_dataset_metadata(clie
     assert ss_dataset.primary_key == ["ss_item_sk", "ss_ticket_number"]
     assert ss_dataset.ai_context is not None
 
-    # model-level metrics/custom_extensions (entirely outside the graph payload) survive
+    # metrics round-tripped unchanged (this test isn't editing them), and
+    # model-level custom_extensions (entirely outside the graph payload) survive
     assert len(sm.metrics) == 5
     assert sm.custom_extensions is not None and len(sm.custom_extensions) == 2
 
@@ -159,10 +169,89 @@ def test_duplicate_dataset_name_is_422(client_as, model):
     assert resp.status_code == 422
 
 
+def test_add_new_metric(client_as, model):
+    metrics = _metrics_payload(model)
+    metrics.append({"name": "avg_sale_price", "expression": "AVG(store_sales.ss_sales_price)", "description": None})
+
+    resp = client_as("editor").put(
+        f"/api/models/{model['id']}/graph",
+        json={
+            "datasets": _datasets_payload(model),
+            "relationships": _relationships_payload(model),
+            "metrics": metrics,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric_count"] == 6
+    added = next(m for m in body["metrics"] if m["name"] == "avg_sale_price")
+    assert added["expression"] == "AVG(store_sales.ss_sales_price)"
+
+
+def test_editing_metric_expression_preserves_ai_context(client_as, model):
+    metrics = _metrics_payload(model)
+    total_sales = next(m for m in metrics if m["name"] == "total_sales")
+    total_sales["expression"] = "SUM(store_sales.ss_ext_sales_price) * 1.1"  # the only thing we're changing
+
+    resp = client_as("editor").put(
+        f"/api/models/{model['id']}/graph",
+        json={
+            "datasets": _datasets_payload(model),
+            "relationships": _relationships_payload(model),
+            "metrics": metrics,
+        },
+    )
+    assert resp.status_code == 200
+
+    document = parse_ossie_yaml(resp.json()["raw_yaml"])
+    sm = document.semantic_model[0]
+    edited = next(m for m in sm.metrics if m.name == "total_sales")
+    assert edited.expression.dialects[0].expression == "SUM(store_sales.ss_ext_sales_price) * 1.1"
+    # ai_context (which the canvas has no control for) survived
+    assert edited.ai_context is not None
+    assert "gross sales" in edited.ai_context.synonyms
+
+
+def test_removing_a_metric_from_payload_removes_it(client_as, model):
+    metrics = [m for m in _metrics_payload(model) if m["name"] != "store_productivity"]
+
+    resp = client_as("editor").put(
+        f"/api/models/{model['id']}/graph",
+        json={
+            "datasets": _datasets_payload(model),
+            "relationships": _relationships_payload(model),
+            "metrics": metrics,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric_count"] == 4
+    assert "store_productivity" not in {m["name"] for m in body["metrics"]}
+
+
+def test_duplicate_metric_name_is_422(client_as, model):
+    metrics = _metrics_payload(model)
+    metrics.append(dict(metrics[0]))  # duplicate the first metric's name
+
+    resp = client_as("editor").put(
+        f"/api/models/{model['id']}/graph",
+        json={
+            "datasets": _datasets_payload(model),
+            "relationships": _relationships_payload(model),
+            "metrics": metrics,
+        },
+    )
+    assert resp.status_code == 422
+
+
 def test_viewer_cannot_edit_graph(client_as, model):
     resp = client_as("viewer").put(
         f"/api/models/{model['id']}/graph",
-        json={"datasets": _datasets_payload(model), "relationships": _relationships_payload(model)},
+        json={
+            "datasets": _datasets_payload(model),
+            "relationships": _relationships_payload(model),
+            "metrics": _metrics_payload(model),
+        },
     )
     assert resp.status_code == 403
 
@@ -170,6 +259,10 @@ def test_viewer_cannot_edit_graph(client_as, model):
 def test_admin_can_edit_anyones_graph(client_as, model):
     resp = client_as("admin").put(
         f"/api/models/{model['id']}/graph",
-        json={"datasets": _datasets_payload(model), "relationships": _relationships_payload(model)},
+        json={
+            "datasets": _datasets_payload(model),
+            "relationships": _relationships_payload(model),
+            "metrics": _metrics_payload(model),
+        },
     )
     assert resp.status_code == 200

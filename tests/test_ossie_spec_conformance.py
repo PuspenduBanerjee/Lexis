@@ -31,10 +31,10 @@ def test_tpcds_fixture_conforms_to_upstream_schema():
 
 
 def test_vendored_models_match_submodule_source():
-    vendored = Path(__file__).parent.parent / "src" / "semantica" / "_vendor" / "ossie" / "models.py"
+    vendored = Path(__file__).parent.parent / "src" / "lexis" / "_vendor" / "ossie" / "models.py"
     upstream = OSSIE_SUBMODULE / "python" / "src" / "ossie" / "models.py"
     assert vendored.read_text() == upstream.read_text(), (
-        "src/semantica/_vendor/ossie/models.py has drifted from the third_party/ossie "
+        "src/lexis/_vendor/ossie/models.py has drifted from the third_party/ossie "
         "submodule - run scripts/sync_ossie_vendor.sh (after `git submodule update "
         "--remote third_party/ossie` if you meant to pick up an upstream change)"
     )

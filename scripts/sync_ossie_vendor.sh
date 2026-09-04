@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Re-vendor src/semantica/_vendor/ossie from the third_party/ossie git submodule.
+# Re-vendor src/lexis/_vendor/ossie from the third_party/ossie git submodule.
 #
 # `apache-ossie` isn't published to PyPI yet, so we vendor `python/src/ossie/models.py`
-# verbatim (see src/semantica/_vendor/ossie/NOTICE.md) instead of depending on it. This
+# verbatim (see src/lexis/_vendor/ossie/NOTICE.md) instead of depending on it. This
 # script copies the submodule's current commit of models.py over the vendored copy and
 # regenerates NOTICE.md with that commit's hash, so keeping our Ossie model classes in
 # sync with the upstream spec is just:
@@ -19,8 +19,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 SUBMODULE_DIR="third_party/ossie"
 SRC="$SUBMODULE_DIR/python/src/ossie/models.py"
-DEST="src/semantica/_vendor/ossie/models.py"
-INIT="src/semantica/_vendor/ossie/__init__.py"
+DEST="src/lexis/_vendor/ossie/models.py"
+INIT="src/lexis/_vendor/ossie/__init__.py"
 
 if [[ ! -f "$SRC" ]]; then
   echo "error: $SRC not found - run 'git submodule update --init' first" >&2
@@ -32,7 +32,7 @@ COMMIT=$(git -C "$SUBMODULE_DIR" rev-parse HEAD)
 cp "$SRC" "$DEST"
 echo "Copied $SRC -> $DEST (commit $COMMIT)"
 
-cat > src/semantica/_vendor/ossie/NOTICE.md <<EOF
+cat > src/lexis/_vendor/ossie/NOTICE.md <<EOF
 Vendored from https://github.com/apache/ossie
 Path: python/src/ossie
 Commit: $COMMIT
@@ -48,7 +48,7 @@ Kept in sync with the \`third_party/ossie\` git submodule - after bumping it
 \`scripts/sync_ossie_vendor.sh\` to re-vendor models.py and refresh this file's
 commit pin.
 EOF
-echo "Updated src/semantica/_vendor/ossie/NOTICE.md"
+echo "Updated src/lexis/_vendor/ossie/NOTICE.md"
 
 missing=0
 while read -r name; do

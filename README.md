@@ -1,4 +1,4 @@
-# Semantica
+# Lexis
 
 An open, [Apache Ossie](https://github.com/apache/ossie)-native semantic layer:
 author a data model once in Ossie YAML, then transpile it to warehouse-native SQL
@@ -6,7 +6,7 @@ author a data model once in Ossie YAML, then transpile it to warehouse-native SQ
 understand (Cube.js schema, dbt-core Ossie documents, MCP tool manifests grounded in
 `ai_context`).
 
-Two ways to use it: a `semantica` CLI/library, and a web UI (FastAPI + React) with a
+Two ways to use it: a `lexis` CLI/library, and a web UI (FastAPI + React) with a
 persisted multi-model workspace, role-based access, and live DuckDB query execution.
 
 See [docs/architecture-plan.md](docs/architecture-plan.md) for the full architecture
@@ -14,17 +14,59 @@ writeup and design rationale.
 
 This repo tracks the upstream [Ossie spec](https://github.com/apache/ossie)
 as a git submodule at `third_party/ossie` (schema, converters docs, examples) so our
-vendored model classes (`src/semantica/_vendor/ossie/`) can be kept in sync with it -
+vendored model classes (`src/lexis/_vendor/ossie/`) can be kept in sync with it -
 see "Keeping Ossie in sync" below.
 
-## Quickstart: CLI
+## Quickstart: Install from PyPI
+
+```bash
+pip install lexis-cli
+```
+
+Save this as `model.yaml`:
+
+```yaml
+version: "0.2.0.dev0"
+semantic_model:
+  - name: shop
+    datasets:
+      - name: orders
+        source: analytics.public.orders
+        fields:
+          - name: amount
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: amount
+    metrics:
+      - name: total_revenue
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(orders.amount)
+```
+
+Then transpile it:
+
+```bash
+lexis transpile model.yaml --target duckdb --metric total_revenue
+```
+
+```sql
+SELECT SUM(orders.amount) AS "total_revenue"
+FROM analytics.public.orders AS "orders"
+```
+
+Same command works for every target below — see [Quickstart: CLI (from source)](#quickstart-cli-from-source) for the full target list and the repo's own TPC-DS-based example fixture.
+
+## Quickstart: CLI (from source)
 
 Requires Python 3.11+.
 
 ```bash
 git submodule update --init   # first time only, or after a fresh clone
 pip install -e .
-semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target duckdb --metric total_sales
+lexis transpile tests/fixtures/tpcds_semantic_model.yaml --target duckdb --metric total_sales
 ```
 
 ```sql
@@ -37,8 +79,8 @@ and an optional repeatable `--group-by dataset.field`), plus `cube`, `dbt`, `mcp
 `snowflake_semantic_view` (whole-model outputs, no `--metric` needed):
 
 ```bash
-semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target mcp
-semantica transpile tests/fixtures/tpcds_semantic_model.yaml \
+lexis transpile tests/fixtures/tpcds_semantic_model.yaml --target mcp
+lexis transpile tests/fixtures/tpcds_semantic_model.yaml \
   --target duckdb --metric customer_lifetime_value --group-by item.i_category
 ```
 
@@ -50,7 +92,7 @@ without one become `FACTS`, and `ai_context` synonyms/descriptions map to `WITH
 SYNONYMS`/`COMMENT`:
 
 ```bash
-semantica transpile tests/fixtures/tpcds_semantic_model.yaml --target snowflake_semantic_view
+lexis transpile tests/fixtures/tpcds_semantic_model.yaml --target snowflake_semantic_view
 ```
 
 Add `--out <file>` to write to a file instead of stdout.
@@ -60,8 +102,8 @@ run mode uses in-memory) can be exported to a real `.duckdb` file, handy as a se
 file for the Upload run mode or a `duckdb_file` connection:
 
 ```bash
-pip install -e ".[dev]"        # or ".[api]" - needs the optional duckdb dependency
-semantica export-demo-dataset --out demo.duckdb
+pip install -e ".[mcp]"        # needs the optional duckdb dependency
+lexis export-demo-dataset --out demo.duckdb
 ```
 
 Pass `--force` to overwrite an existing file at `--out`.
@@ -74,8 +116,8 @@ Two servers: a FastAPI backend and a Vite/React frontend.
 
 ```bash
 pip install -e ".[dev,api]"
-alembic upgrade head        # creates semantica_dev.db and its schema
-uvicorn semantica_api.main:app --reload --port 8000
+alembic upgrade head        # creates lexis_dev.db and its schema
+uvicorn lexis_api.main:app --reload --port 8000
 ```
 
 Startup automatically seeds 3 demo users (`admin`, `editor1`, `viewer1` — ids 1/2/3,
@@ -102,8 +144,8 @@ on PATH already, e.g. via the pyenv/venv `pip install -e ".[dev,api]"` above):
 ./scripts/dev.sh restart
 ```
 
-Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `SEMANTICA_API_PORT`/
-`SEMANTICA_WEB_PORT` env vars.
+Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `LEXIS_API_PORT`/
+`LEXIS_WEB_PORT` env vars.
 
 Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
 role, paste an Ossie YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
@@ -123,18 +165,18 @@ quarter → month → day), or "Roll up" to go back.
 The canvas preserves anything it has no control for (`ai_context`, `custom_extensions`,
 non-ANSI_SQL dialect expressions) by merging onto the existing
 parsed model rather than regenerating YAML from scratch; see
-`src/semantica_api/graph_edit.py`. "Test Metrics" executes the generated SQL for real,
+`src/lexis_api/graph_edit.py`. "Test Metrics" executes the generated SQL for real,
 against a bundled TPC-DS demo dataset, an uploaded `.duckdb`/`.db` file, or a saved
 connection (see "Connecting to Snowflake or an external DuckDB file" below) — pick
 "Time series" there for the full drill-down/roll-up view (with metric, time-field, and
 starting-grain pickers), or "Metric query" for the original metric+group-by mode. In
 "Demo dataset" mode, an "Export demo dataset (.duckdb)" button downloads that same
-data as a real file - the CLI equivalent of `semantica export-demo-dataset` above.
+data as a real file - the CLI equivalent of `lexis export-demo-dataset` above.
 
 ## Quickstart: Docker
 
-Two images: `semantica-api` (FastAPI backend, migrations run automatically on
-container start) and `semantica-web` (the built SPA served by nginx, which also
+Two images: `lexis-api` (FastAPI backend, migrations run automatically on
+container start) and `lexis-web` (the built SPA served by nginx, which also
 reverse-proxies `/api/*` to the backend - same same-origin-`/api` pattern the Vite
 dev proxy uses, just in production).
 
@@ -143,17 +185,17 @@ docker compose up -d --build
 ```
 
 Open `http://localhost:8080`. The SQLite database lives on a named volume
-(`semantica-data`, mounted at `/data` in the API container), so it survives
+(`lexis-data`, mounted at `/data` in the API container), so it survives
 `docker compose down`/`up` and container restarts - only `docker compose down -v`
-removes it. Override `SEMANTICA_CORS_ORIGINS`/`SEMANTICA_MAX_DUCKDB_UPLOAD_MB`/etc.
-(see `src/semantica_api/config.py`) via `environment:` in `docker-compose.yml` if
+removes it. Override `LEXIS_CORS_ORIGINS`/`LEXIS_MAX_DUCKDB_UPLOAD_MB`/etc.
+(see `src/lexis_api/config.py`) via `environment:` in `docker-compose.yml` if
 needed; if you raise the upload cap, also raise nginx's `client_max_body_size` in
 `docker/nginx.conf` to match.
 
 To build the images without compose (e.g. for pushing to a registry):
 
 ```bash
-./scripts/docker-build.sh [tag]   # defaults to "latest"; builds semantica-api and semantica-web
+./scripts/docker-build.sh [tag]   # defaults to "latest"; builds lexis-api and lexis-web
 ```
 
 Both containers currently run as root and there's no HTTPS/reverse-auth in front of
@@ -185,9 +227,9 @@ curl -X POST http://localhost:8000/api/connections \
 ```
 
 `path` is resolved on the **API server** (or, in Docker, inside the
-`semantica-api` container) - it's not a client-side file picker. If you're
+`lexis-api` container) - it's not a client-side file picker. If you're
 running via `docker compose`, mount the directory containing the file into the
-container (alongside the existing `semantica-data` volume in
+container (alongside the existing `lexis-data` volume in
 `docker-compose.yml`) so the path is reachable there.
 
 **Create a Snowflake connection:**
@@ -200,7 +242,7 @@ curl -X POST http://localhost:8000/api/connections \
         "type": "snowflake",
         "config": {
           "account": "xy12345.us-east-1",
-          "user": "SEMANTICA_SVC",
+          "user": "LEXIS_SVC",
           "password_env": "SNOWFLAKE_PASSWORD",
           "warehouse": "COMPUTE_WH",
           "database": "ANALYTICS",
@@ -252,7 +294,7 @@ model "Run" tab's "Saved connection" mode lets you pick one to run against.
 
 The `--target mcp` transpile output above is schema-only — it describes the tools but
 doesn't run anything. For an AI tool to actually call a metric and get real query
-results back, Semantica can also serve a model as a **live** MCP server, one
+results back, Lexis can also serve a model as a **live** MCP server, one
 `query_<metric>` tool per metric, resolved against the demo dataset, a local DuckDB
 file, or Snowflake.
 
@@ -260,7 +302,7 @@ file, or Snowflake.
 
 ```bash
 pip install -e ".[mcp]"
-semantica mcp-serve tests/fixtures/tpcds_semantic_model.yaml --demo
+lexis mcp-serve tests/fixtures/tpcds_semantic_model.yaml --demo
 # or: --duckdb-file /path/to/warehouse.duckdb
 # or: --snowflake-account ... --snowflake-user ... --snowflake-password-env ...
 ```
@@ -270,8 +312,8 @@ Point a client's config at it, e.g. Claude Desktop's `claude_desktop_config.json
 ```json
 {
   "mcpServers": {
-    "semantica": {
-      "command": "semantica",
+    "lexis": {
+      "command": "lexis",
       "args": ["mcp-serve", "/path/to/model.yaml", "--demo"]
     }
   }
@@ -301,7 +343,7 @@ install has none, so calling this endpoint before creating a connection fails wi
 demo data:
 
 ```bash
-semantica export-demo-dataset --out /tmp/tpcds-demo.duckdb --force
+lexis export-demo-dataset --out /tmp/tpcds-demo.duckdb --force
 
 curl -X POST http://localhost:8000/api/connections \
   -H "X-User-Id: 2" -H "Content-Type: application/json" \
@@ -337,8 +379,8 @@ pytest
 ## Project structure
 
 ```text
-src/semantica/          core library: Ossie parsing, join-graph resolution, transpilers, CLI
-src/semantica_api/      FastAPI backend (models, RBAC, transpile route, live query execution
+src/lexis/          core library: Ossie parsing, join-graph resolution, transpilers, CLI
+src/lexis_api/      FastAPI backend (models, RBAC, transpile route, live query execution
                         against demo/upload DuckDB or a persisted connections.py connection)
 frontend/                Vite + React + TypeScript SPA
 tests/                  core library tests (fixtures under tests/fixtures/)
@@ -351,7 +393,7 @@ third_party/ossie/      git submodule: upstream Ossie spec/schema/converters doc
 
 ## Keeping Ossie in sync
 
-`src/semantica/_vendor/ossie/models.py` is a vendored (not pip-installed - `apache-ossie`
+`src/lexis/_vendor/ossie/models.py` is a vendored (not pip-installed - `apache-ossie`
 isn't on PyPI yet) copy of upstream's pydantic model classes, and `tests/fixtures/*.yaml`
 are meant to conform to upstream's JSON Schema. Both are checked against the
 `third_party/ossie` submodule by `tests/test_ossie_spec_conformance.py`, so a submodule bump

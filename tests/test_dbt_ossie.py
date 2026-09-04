@@ -1,6 +1,6 @@
 import json
 
-from semantica.transpilers.dbt_ossie import DBT_EMIT_VERSION, emit_dbt_ossie_document
+from lexis.transpilers.dbt_ossie import DBT_EMIT_VERSION, emit_dbt_ossie_document
 
 
 def test_emits_dbt_supported_version_regardless_of_source_version(tpcds_document):

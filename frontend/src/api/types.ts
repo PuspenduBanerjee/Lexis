@@ -1,4 +1,4 @@
-// Hand-written TS interfaces mirroring semantica_api/schemas.py. No codegen for v1 -
+// Hand-written TS interfaces mirroring lexis_api/schemas.py. No codegen for v1 -
 // keep these in sync manually when the backend schemas change.
 
 export type Role = "admin" | "editor" | "viewer";

@@ -7,9 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from semantica_api.db import Base
-from semantica_api.models import SemanticModelRecord, User
-from semantica_api.seed import seed_default_users, seed_sample_model
+from lexis_api.db import Base
+from lexis_api.models import SemanticModelRecord, User
+from lexis_api.seed import seed_default_users, seed_sample_model
 
 
 def _fresh_session():

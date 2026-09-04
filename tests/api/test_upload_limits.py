@@ -22,7 +22,7 @@ def test_wrong_extension_is_400(client_as, model_id, tmp_path):
 
 
 def test_oversized_upload_is_413(client_as, model_id, tmp_path, monkeypatch):
-    from semantica_api.config import settings
+    from lexis_api.config import settings
 
     monkeypatch.setattr(settings, "max_duckdb_upload_mb", 0)
 

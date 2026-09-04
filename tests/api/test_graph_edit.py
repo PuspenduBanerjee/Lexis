@@ -8,7 +8,7 @@ real usage, then check the merge preserves what the canvas has no control for.
 
 import pytest
 
-from semantica.parser import parse_ossie_yaml
+from lexis.parser import parse_ossie_yaml
 
 
 @pytest.fixture()

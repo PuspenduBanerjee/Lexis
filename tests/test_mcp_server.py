@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from mcp import types
 
-from semantica.mcp_server import build_server
+from lexis.mcp_server import build_server
 
 
 def _list_tools(server):

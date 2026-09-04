@@ -12,7 +12,7 @@ Deferred items, not blocking current functionality.
   or a fixed-UID volume) and a TLS-terminating proxy in front of `web`.
 - **SQLite on a single named volume** means this is single-instance-only - it
   doesn't horizontally scale the `api` service (multiple replicas would corrupt/
-  contend on the same SQLite file). Swapping `SEMANTICA_DATABASE_URL` to Postgres
+  contend on the same SQLite file). Swapping `LEXIS_DATABASE_URL` to Postgres
   (already a documented "cheap swap" in the architecture plan) would be the natural
   next step if that's ever needed.
 - **No CI-built/pushed images** - `scripts/docker-build.sh` builds locally by tag;
@@ -38,9 +38,9 @@ Deferred items, not blocking current functionality.
   - Store positions in Ossie's own `custom_extensions` vendor-metadata escape hatch.
     `vendor_name` is a plain `str` as of the Apache Ossie spec (no longer the closed
     `OssieVendor` enum it once was), so this no longer needs a vendored-enum edit —
-    just use `vendor_name="SEMANTICA"` directly.
+    just use `vendor_name="LEXIS"` directly.
   - Store positions in a new column/table on `SemanticModelRecord`
-    (`src/semantica_api/models.py`), keyed by dataset name, separate from Ossie content.
+    (`src/lexis_api/models.py`), keyed by dataset name, separate from Ossie content.
 - **Re-fit the viewport after adding a node.** `fitView` only runs on initial mount;
   a newly added dataset can land outside the visible viewport if the canvas has been
   panned/zoomed. Minor polish, not a functional bug (the node is still there and
@@ -71,7 +71,7 @@ Deferred items, not blocking current functionality.
 ## Time-series drill-down/roll-up (Design tab preview + Test Metrics tab)
 
 - **DATE_TRUNC-based grain grouping** (`SqlDialectEmitter.emit_timeseries_query` in
-  `src/semantica/transpilers/sql/base.py`) only covers `year`/`quarter`/`month`/`day`
+  `src/lexis/transpilers/sql/base.py`) only covers `year`/`quarter`/`month`/`day`
   and is only ever invoked through the DuckDB live-execution path
   (`duckdb_runtime.run_timeseries_query`, `POST /api/models/{id}/run/timeseries`) - it
   isn't wired into the CLI's `--target` dispatch or the other 4 SQL dialects' actual

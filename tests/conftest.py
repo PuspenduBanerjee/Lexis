@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from semantica.parser import load_ossie_document
-from semantica.resolved_model import ResolvedModel
+from lexis.parser import load_ossie_document
+from lexis.resolved_model import ResolvedModel
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 
 def test_alembic_upgrade_head_creates_expected_tables(tmp_path):
     db_path = tmp_path / "migration_test.db"
-    env = {**os.environ, "SEMANTICA_DATABASE_URL": f"sqlite:///{db_path}"}
+    env = {**os.environ, "LEXIS_DATABASE_URL": f"sqlite:///{db_path}"}
 
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],

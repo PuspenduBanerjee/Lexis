@@ -3,12 +3,12 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    image: semantica-api:latest
+    image: lexis-api:latest
     environment:
       # pydantic-settings parses list-typed env vars as JSON.
-      SEMANTICA_CORS_ORIGINS: '["http://localhost:8080"]'
+      LEXIS_CORS_ORIGINS: '["http://localhost:8080"]'
     volumes:
-      - semantica-data:/data
+      - lexis-data:/data
     expose:
       - "8000"
     healthcheck:
@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
-    image: semantica-web:latest
+    image: lexis-web:latest
     ports:
       - "8080:8080"
     depends_on:
@@ -29,4 +29,4 @@ services:
         condition: service_healthy
 
 volumes:
-  semantica-data:
+  lexis-data:

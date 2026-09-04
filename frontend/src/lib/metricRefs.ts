@@ -1,4 +1,4 @@
-// Mirrors `semantica.resolved_model.ResolvedModel.referenced_datasets`'s regex, so
+// Mirrors `lexis.resolved_model.ResolvedModel.referenced_datasets`'s regex, so
 // the canvas can compute a metric's dataset-reference edges live (as expressions are
 // typed, or a metric is just added) instead of only after a save + model refetch.
 const QUALIFIED_REF_RE = /\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_]*\b/g;

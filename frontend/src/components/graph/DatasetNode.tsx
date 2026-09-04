@@ -16,7 +16,20 @@ export function DatasetNode({ data, selected }: NodeProps & { data: DatasetNodeD
       }}
     >
       <Handle type="target" position={Position.Left} />
-      <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", fontWeight: 600 }}>
+      <div
+        style={{
+          padding: "6px 10px",
+          borderBottom: "1px solid var(--border)",
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{ width: 7, height: 7, flexShrink: 0, borderRadius: "50%", background: "var(--dataset-accent)" }}
+        />
         {dataset.name}
       </div>
       <div style={{ padding: "6px 10px" }}>

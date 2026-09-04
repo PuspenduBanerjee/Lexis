@@ -1,8 +1,8 @@
 """Pydantic request/response schemas for the API.
 
-Deliberately separate from the vendored `semantica._vendor.osi` pydantic models —
+Deliberately separate from the vendored `semantica._vendor.ossie` pydantic models —
 the HTTP contract shouldn't be coupled to (and broken by) internal vendored-library
-shape changes. `to_*_out` helpers below map OSI objects into these schemas.
+shape changes. `to_*_out` helpers below map Ossie objects into these schemas.
 """
 
 from datetime import datetime
@@ -10,15 +10,25 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from semantica._vendor.osi import OSIDataset, OSIDialect, OSIMetric, OSIRelationship
+from semantica._vendor.ossie import OssieDataset, OssieDialect, OssieMetric, OssieRelationship
 from semantica.resolved_model import MissingExpressionError, ResolvedModel
-from semantica_api.models import SemanticModelRecord
+from semantica_api.models import Connection, SemanticModelRecord
 
 TARGET = Literal[
-    "duckdb", "postgres", "bigquery", "databricks", "snowflake", "cube", "dbt", "mcp"
+    "duckdb",
+    "postgres",
+    "bigquery",
+    "databricks",
+    "snowflake",
+    "cube",
+    "dbt",
+    "mcp",
+    "snowflake_semantic_view",
 ]
 
 TIME_GRAIN = Literal["year", "quarter", "month", "day"]
+
+CONNECTION_TYPE = Literal["duckdb_file", "snowflake"]
 
 
 class UserOut(BaseModel):
@@ -31,7 +41,8 @@ class FieldOut(BaseModel):
     name: str
     description: str | None = None
     expression: str | None = None  # ANSI_SQL text, best-effort (None if unavailable)
-    is_time: bool = False  # from OSI's `dimension.is_time` - candidate for time-series grain grouping
+    is_time: bool = False  # from OssieField.is_time_dimension() - candidate for time-series grain grouping
+    datatype: str | None = None  # OssieDataType value (e.g. "String", "Integer"), if the model declares one
 
 
 class DatasetOut(BaseModel):
@@ -53,6 +64,7 @@ class MetricOut(BaseModel):
     description: str | None = None
     expression: str | None = None  # ANSI_SQL text, best-effort (None if unavailable)
     referenced_datasets: list[str] = []
+    datatype: str | None = None  # OssieDataType value (e.g. "Decimal", "Integer"), if the model declares one
 
 
 class ModelSummaryOut(BaseModel):
@@ -120,26 +132,79 @@ class GraphRelationshipIn(BaseModel):
     to_columns: list[str]
 
 
+class GraphMetricIn(BaseModel):
+    name: str
+    expression: str  # ANSI_SQL text
+    description: str | None = None
+
+
 class GraphEditIn(BaseModel):
-    """Structured graph-canvas state for a model's datasets/relationships. Applied by
-    merging onto the existing parsed OSIDocument (see graph_edit.py) so attributes the
-    canvas has no control for (ai_context, custom_extensions, non-ANSI_SQL dialect
-    expressions, primary_key/unique_keys, metrics) are preserved untouched."""
+    """Structured graph-canvas state for a model's datasets/relationships/metrics.
+    Applied by merging onto the existing parsed OssieDocument (see graph_edit.py) so
+    attributes the canvas has no control for (ai_context, custom_extensions,
+    non-ANSI_SQL dialect expressions, primary_key/unique_keys) are preserved
+    untouched."""
 
     datasets: list[GraphDatasetIn]
     relationships: list[GraphRelationshipIn] = []
+    metrics: list[GraphMetricIn] = []
+
+
+class ConnectionIn(BaseModel):
+    """`config` shape depends on `type` - validated in
+    `connection_runtime.validate_connection_config` rather than as a pydantic
+    discriminated union, since it's just two flat shapes:
+
+    - duckdb_file: `{"path": "<server-side filesystem path>"}`
+    - snowflake: `{"account", "user", "password_env", "warehouse"?, "database"?,
+      "schema"?, "role"?}` - `password_env` is the *name* of an environment variable
+      the API process reads at connect time; the real secret is never stored here.
+    """
+
+    name: str
+    type: CONNECTION_TYPE
+    config: dict[str, Any]
+
+
+class ConnectionOut(BaseModel):
+    id: int
+    name: str
+    type: CONNECTION_TYPE
+    owner_id: int
+    owner_username: str
+    config: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConnectionTestOut(BaseModel):
+    ok: bool
+    detail: str
+
+
+def to_connection_out(conn: Connection) -> ConnectionOut:
+    return ConnectionOut(
+        id=conn.id,
+        name=conn.name,
+        type=conn.type.value,
+        owner_id=conn.owner_id,
+        owner_username=conn.owner.username,
+        config=conn.config,
+        created_at=conn.created_at,
+        updated_at=conn.updated_at,
+    )
 
 
 def _expression_text(model: ResolvedModel, expressed) -> str | None:
-    """Best-effort ANSI_SQL text for anything with an `.expression: OSIExpression`
-    attribute (OSIField or OSIMetric)."""
+    """Best-effort ANSI_SQL text for anything with an `.expression: OssieExpression`
+    attribute (OssieField or OssieMetric)."""
     try:
-        return model.resolve_expression(expressed.expression, OSIDialect.ANSI_SQL)
+        return model.resolve_expression(expressed.expression, OssieDialect.ANSI_SQL)
     except MissingExpressionError:
         return None
 
 
-def to_dataset_out(dataset: OSIDataset, model: ResolvedModel) -> DatasetOut:
+def to_dataset_out(dataset: OssieDataset, model: ResolvedModel) -> DatasetOut:
     return DatasetOut(
         name=dataset.name,
         source=dataset.source,
@@ -148,14 +213,15 @@ def to_dataset_out(dataset: OSIDataset, model: ResolvedModel) -> DatasetOut:
                 name=f.name,
                 description=f.description,
                 expression=_expression_text(model, f),
-                is_time=bool(f.dimension and f.dimension.is_time),
+                is_time=f.is_time_dimension(),
+                datatype=f.datatype.value if f.datatype else None,
             )
             for f in dataset.fields or []
         ],
     )
 
 
-def to_relationship_out(rel: OSIRelationship) -> RelationshipOut:
+def to_relationship_out(rel: OssieRelationship) -> RelationshipOut:
     return RelationshipOut(
         name=rel.name,
         from_dataset=rel.from_dataset,
@@ -165,13 +231,14 @@ def to_relationship_out(rel: OSIRelationship) -> RelationshipOut:
     )
 
 
-def to_metric_out(metric: OSIMetric, model: ResolvedModel) -> MetricOut:
+def to_metric_out(metric: OssieMetric, model: ResolvedModel) -> MetricOut:
     expression = _expression_text(model, metric)
     return MetricOut(
         name=metric.name,
         description=metric.description,
         expression=expression,
         referenced_datasets=model.referenced_datasets(expression) if expression else [],
+        datatype=metric.datatype.value if metric.datatype else None,
     )
 
 

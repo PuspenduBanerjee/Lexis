@@ -1,11 +1,12 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { MetricOut } from "../../api/types";
+import type { GraphMetricIn } from "../../api/types";
 
-export type MetricNodeData = { metric: MetricOut };
+export type MetricNodeData = { metric: GraphMetricIn };
 
-/** Read-only: metrics can't be created/edited/deleted from the canvas (see
- * TODO.md) - this node exists purely to show which datasets a metric's
- * expression spans, via its incoming reference edges. */
+/** Click to open MetricPanel for editing (name/expression/description) or
+ * deletion. Incoming dashed edges (see GraphEditor's `buildMetricEdges`) are
+ * recomputed live from this node's own `expression`, so they track edits as
+ * they're typed rather than only refreshing after a save. */
 export function MetricNode({ data, selected }: NodeProps & { data: MetricNodeData }) {
   const { metric } = data;
   return (
@@ -17,12 +18,34 @@ export function MetricNode({ data, selected }: NodeProps & { data: MetricNodeDat
         minWidth: 150,
         padding: "8px 14px",
         fontSize: 13,
-        textAlign: "center",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
       }}
     >
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      <div style={{ fontWeight: 600 }}>{metric.name}</div>
-      <div className="muted">metric</div>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 20,
+          height: 20,
+          flexShrink: 0,
+          borderRadius: "50%",
+          background: "var(--metric-accent-soft)",
+          color: "var(--metric-accent)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        Σ
+      </span>
+      <span>
+        <div style={{ fontWeight: 600 }}>{metric.name}</div>
+        <div className="muted">metric</div>
+      </span>
     </div>
   );
 }

@@ -7,87 +7,45 @@ and DuckDB supports attaching a secondary catalog under an explicit name via
 `ATTACH ... AS <name>` (including `ATTACH ':memory:' AS tpcds` for an in-memory one) -
 so both paths just attach a database under the catalog name the model's SQL expects.
 
-Note on the demo dataset: the plan called for sharing this setup with
-`tests/test_sql_emitters.py`'s existing DuckDB fixture data via a helper under
-`tests/fixtures/`. That would make this production module depend on the `tests/`
-tree, which isn't packaged/shipped and is the wrong dependency direction (production
-code should not import from tests). Instead, `build_tpcds_demo_connection()` lives
-here (production code, since the demo-mode feature genuinely needs it at runtime),
-duplicating the same small, stable set of CREATE/INSERT statements the existing unit
-test already uses. The new API test (`tests/api/test_duckdb_execution.py`) imports
-this function directly instead of re-duplicating a third copy.
+The demo dataset itself (`build_tpcds_demo_connection`/`TPCDS_DEMO_SOURCES`) lives in
+`semantica.demo_data` (core library, not this API package) so the CLI's
+`export-demo-dataset` command can reuse the exact same CREATE/INSERT statements
+without depending on semantica_api.
 """
 
 import re
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime
 from pathlib import Path
 
 import duckdb
 from fastapi import HTTPException, UploadFile
 
+from semantica.demo_data import TPCDS_DEMO_SOURCES, build_tpcds_demo_connection
 from semantica.resolved_model import ResolvedModel
 from semantica.transpilers.sql import DuckDBEmitter
 from semantica_api.config import settings
+from semantica_api.query_runtime import run_metric_query as _run_metric_query
+from semantica_api.query_runtime import run_timeseries_query as _run_timeseries_query
 
-_TPCDS_DEMO_SOURCES = {
-    "tpcds.public.store_sales",
-    "tpcds.public.customer",
-    "tpcds.public.item",
-    "tpcds.public.date_dim",
-}
+__all__ = [
+    "build_tpcds_demo_connection",
+    "catalog_name_for_upload",
+    "check_demo_compatible",
+    "open_uploaded_database",
+    "run_metric_query",
+    "run_timeseries_query",
+    "saved_upload",
+]
+
 _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def build_tpcds_demo_connection() -> duckdb.DuckDBPyConnection:
-    """A small bundled in-memory dataset matching the TPC-DS fixture's schema, attached
-    under catalog `tpcds` so `tpcds.public.*`-sourced SQL runs against it unmodified.
-
-    The `date_dim`/time-series rows use `ss_item_sk=12`/`ss_customer_sk=102`, which
-    deliberately don't match any `item`/`customer` row - so they're silently excluded
-    by the INNER JOINs in `test_demo_mode_matches_unit_test_result`'s Books/Electronics
-    query, and only show up for metrics that don't join those tables (e.g.
-    `total_sales`, grouped/drilled by date_dim's `d_date`).
-    """
-    con = duckdb.connect()
-    con.execute("ATTACH ':memory:' AS tpcds")
-    con.execute("CREATE SCHEMA tpcds.public")
-    con.execute(
-        "CREATE TABLE tpcds.public.store_sales ("
-        "ss_sold_date_sk INT, ss_item_sk INT, ss_customer_sk INT, ss_store_sk INT, "
-        "ss_ext_sales_price DOUBLE, ss_net_profit DOUBLE)"
-    )
-    con.execute("CREATE TABLE tpcds.public.customer (c_customer_sk INT)")
-    con.execute("CREATE TABLE tpcds.public.item (i_item_sk INT, i_category VARCHAR)")
-    con.execute(
-        "CREATE TABLE tpcds.public.date_dim ("
-        "d_date_sk INT, d_date DATE, d_year INT, d_quarter_name VARCHAR, d_month_name VARCHAR)"
-    )
-    con.execute(
-        "INSERT INTO tpcds.public.store_sales VALUES "
-        "(1,10,100,1000,50.0,5.0),(1,11,101,1000,30.0,3.0),(2,10,100,1001,20.0,2.0),"
-        "(3,12,102,1000,40.0,4.0),(4,12,102,1000,60.0,6.0),(5,12,102,1000,25.0,2.5),(6,12,102,1000,35.0,3.5)"
-    )
-    con.execute("INSERT INTO tpcds.public.customer VALUES (100),(101)")
-    con.execute("INSERT INTO tpcds.public.item VALUES (10,'Electronics'),(11,'Books')")
-    con.execute(
-        "INSERT INTO tpcds.public.date_dim VALUES "
-        "(1,DATE '2023-01-15',2023,'2023Q1','January'),"
-        "(2,DATE '2023-04-20',2023,'2023Q2','April'),"
-        "(3,DATE '2023-07-10',2023,'2023Q3','July'),"
-        "(4,DATE '2023-10-05',2023,'2023Q4','October'),"
-        "(5,DATE '2024-01-18',2024,'2024Q1','January'),"
-        "(6,DATE '2024-04-22',2024,'2024Q2','April')"
-    )
-    return con
 
 
 def check_demo_compatible(model: ResolvedModel, dataset_names: set[str]) -> None:
     for name in dataset_names:
         source = model.datasets[name].source
-        if source not in _TPCDS_DEMO_SOURCES:
+        if source not in TPCDS_DEMO_SOURCES:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -152,31 +110,16 @@ def open_uploaded_database(path: Path, catalog_name: str) -> Iterator[duckdb.Duc
         con.close()
 
 
-def _json_safe(value):
-    """`date`/`datetime` cells (e.g. a `DATE_TRUNC` period column) aren't natively
-    JSON-serializable inside the `rows: list[list[Any]]` response - stringify them
-    explicitly here rather than relying on FastAPI's encoder to reach into `Any`."""
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    return value
-
-
 def run_metric_query(
     con: duckdb.DuckDBPyConnection,
     model: ResolvedModel,
     metric: str,
     group_by: list[str] | None,
 ) -> dict:
-    sql = DuckDBEmitter().emit_metric_query(model, metric, group_by=group_by)
-    cursor = con.execute(sql)
-    columns = [d[0] for d in cursor.description]
-    rows = cursor.fetchmany(settings.max_result_rows)
-    return {
-        "columns": columns,
-        "rows": [[_json_safe(v) for v in r] for r in rows],
-        "row_count": len(rows),
-        "sql": sql,
-    }
+    """Thin DuckDB-flavored wrapper over the driver-agnostic
+    `query_runtime.run_metric_query` - kept so demo/upload call sites don't need to
+    know or care about emitter selection (always DuckDB here)."""
+    return _run_metric_query(con, DuckDBEmitter(), model, metric, group_by)
 
 
 def run_timeseries_query(
@@ -189,16 +132,6 @@ def run_timeseries_query(
     filter_grain: str | None,
     filter_value: str | None,
 ) -> dict:
-    sql = DuckDBEmitter().emit_timeseries_query(
-        model, metric, time_dataset, time_field, grain,
-        filter_grain=filter_grain, filter_value=filter_value,
+    return _run_timeseries_query(
+        con, DuckDBEmitter(), model, metric, time_dataset, time_field, grain, filter_grain, filter_value
     )
-    cursor = con.execute(sql)
-    columns = [d[0] for d in cursor.description]
-    rows = cursor.fetchmany(settings.max_result_rows)
-    return {
-        "columns": columns,
-        "rows": [[_json_safe(v) for v in r] for r in rows],
-        "row_count": len(rows),
-        "sql": sql,
-    }

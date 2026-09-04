@@ -1,12 +1,12 @@
 import pytest
 
-from semantica._vendor.osi import OSIDialect
+from semantica._vendor.ossie import OssieDialect
 from semantica.resolved_model import MissingExpressionError, UnresolvedJoinError
 
 
 def test_referenced_datasets_extracts_qualified_refs(tpcds_model):
     metric = tpcds_model.metrics["customer_lifetime_value"]
-    expr = tpcds_model.resolve_expression(metric.expression, OSIDialect.ANSI_SQL)
+    expr = tpcds_model.resolve_expression(metric.expression, OssieDialect.ANSI_SQL)
     assert tpcds_model.referenced_datasets(expr) == ["store_sales", "customer"]
 
 
@@ -41,15 +41,15 @@ def test_join_path_raises_for_unknown_dataset(tpcds_model):
 def test_resolve_expression_falls_back_to_ansi_sql(tpcds_model):
     metric = tpcds_model.metrics["total_sales"]
     # Fixture only defines ANSI_SQL; requesting SNOWFLAKE should fall back.
-    expr = tpcds_model.resolve_expression(metric.expression, OSIDialect.SNOWFLAKE)
+    expr = tpcds_model.resolve_expression(metric.expression, OssieDialect.SNOWFLAKE)
     assert expr == "SUM(store_sales.ss_ext_sales_price)"
 
 
 def test_resolve_expression_raises_when_no_fallback_available():
-    from semantica._vendor.osi import OSIDialectExpression, OSIExpression
+    from semantica._vendor.ossie import OssieDialectExpression, OssieExpression
 
-    expr = OSIExpression(dialects=[OSIDialectExpression(dialect=OSIDialect.SNOWFLAKE, expression="x")])
+    expr = OssieExpression(dialects=[OssieDialectExpression(dialect=OssieDialect.SNOWFLAKE, expression="x")])
     from semantica.resolved_model import ResolvedModel
 
     with pytest.raises(MissingExpressionError):
-        ResolvedModel(semantic_model=None).resolve_expression(expr, OSIDialect.DATABRICKS)
+        ResolvedModel(semantic_model=None).resolve_expression(expr, OssieDialect.DATABRICKS)

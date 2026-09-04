@@ -14,6 +14,7 @@ export interface FieldOut {
   description: string | null;
   expression: string | null;
   is_time: boolean;
+  datatype: string | null;
 }
 
 export interface DatasetOut {
@@ -35,6 +36,7 @@ export interface MetricOut {
   description: string | null;
   expression: string | null;
   referenced_datasets: string[];
+  datatype: string | null;
 }
 
 export interface ModelSummaryOut {
@@ -72,10 +74,11 @@ export type Target =
   | "snowflake"
   | "cube"
   | "dbt"
-  | "mcp";
+  | "mcp"
+  | "snowflake_semantic_view";
 
 export const SQL_TARGETS: Target[] = ["duckdb", "postgres", "bigquery", "databricks", "snowflake"];
-export const ALL_TARGETS: Target[] = [...SQL_TARGETS, "cube", "dbt", "mcp"];
+export const ALL_TARGETS: Target[] = [...SQL_TARGETS, "cube", "dbt", "mcp", "snowflake_semantic_view"];
 
 export interface TranspileIn {
   target: Target;
@@ -115,7 +118,38 @@ export interface GraphRelationshipIn {
   to_columns: string[];
 }
 
+export interface GraphMetricIn {
+  name: string;
+  expression: string;
+  description?: string | null;
+}
+
 export interface GraphEditIn {
   datasets: GraphDatasetIn[];
   relationships: GraphRelationshipIn[];
+  metrics: GraphMetricIn[];
+}
+
+export type ConnectionType = "duckdb_file" | "snowflake";
+
+export interface ConnectionOut {
+  id: number;
+  name: string;
+  type: ConnectionType;
+  owner_id: number;
+  owner_username: string;
+  config: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectionIn {
+  name: string;
+  type: ConnectionType;
+  config: Record<string, string>;
+}
+
+export interface ConnectionTestOut {
+  ok: boolean;
+  detail: string;
 }

@@ -2,12 +2,12 @@
 
 Per-dialect subclasses only need to set `dialect` and `quote_char` — the join-graph
 resolution, dialect-expression fallback, and SELECT/FROM/JOIN/GROUP BY assembly are
-identical across warehouses (per OSI's converters/index.md mapping guidance).
+identical across warehouses (per Ossie's converters/index.md mapping guidance).
 """
 
 import re
 
-from semantica._vendor.osi import OSIDialect
+from semantica._vendor.ossie import OssieDialect
 from semantica.resolved_model import ResolvedModel
 
 _SIMPLE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -15,7 +15,7 @@ _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class SqlDialectEmitter:
-    dialect: OSIDialect
+    dialect: OssieDialect
     quote_char: str = '"'
 
     #: Grains supported by `emit_timeseries_query`, coarsest first.

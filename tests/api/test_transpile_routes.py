@@ -1,7 +1,7 @@
 """Prove the transpile route wires to the right emitter for each target.
 
 Transpilation *correctness* is already covered by the existing tests/test_*.py
-(test_sql_emitters.py, test_cube_emitter.py, test_dbt_osi.py, test_mcp.py) - these
+(test_sql_emitters.py, test_cube_emitter.py, test_dbt_ossie.py, test_mcp.py) - these
 tests only prove the route calls the right function with the right args.
 """
 
@@ -57,3 +57,13 @@ def test_mcp_target(client_as, model_id):
     resp = client_as("viewer").post(f"/api/models/{model_id}/transpile", json={"target": "mcp"})
     assert resp.status_code == 200
     assert "tools" in json.loads(resp.json()["content"])
+
+
+def test_snowflake_semantic_view_target(client_as, model_id):
+    resp = client_as("viewer").post(
+        f"/api/models/{model_id}/transpile", json={"target": "snowflake_semantic_view"}
+    )
+    assert resp.status_code == 200
+    content = resp.json()["content"]
+    assert content.startswith("CREATE OR REPLACE SEMANTIC VIEW")
+    assert "TABLES (" in content

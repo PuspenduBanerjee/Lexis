@@ -1,16 +1,16 @@
-"""Index an OSISemanticModel and resolve join paths / dialect expressions."""
+"""Index an OssieSemanticModel and resolve join paths / dialect expressions."""
 
 import re
 from collections import deque
 from dataclasses import dataclass, field
 
-from semantica._vendor.osi import (
-    OSIDataset,
-    OSIDialect,
-    OSIExpression,
-    OSIMetric,
-    OSIRelationship,
-    OSISemanticModel,
+from semantica._vendor.ossie import (
+    OssieDataset,
+    OssieDialect,
+    OssieExpression,
+    OssieMetric,
+    OssieRelationship,
+    OssieSemanticModel,
 )
 
 _QUALIFIED_REF_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_]*\b")
@@ -26,16 +26,16 @@ class MissingExpressionError(ValueError):
 
 @dataclass
 class ResolvedModel:
-    """Indexed view of an OSISemanticModel: fast lookups + join-graph resolution."""
+    """Indexed view of an OssieSemanticModel: fast lookups + join-graph resolution."""
 
-    semantic_model: OSISemanticModel
-    datasets: dict[str, OSIDataset] = field(default_factory=dict)
-    metrics: dict[str, OSIMetric] = field(default_factory=dict)
-    relationships: list[OSIRelationship] = field(default_factory=list)
-    _adjacency: dict[str, list[tuple[str, OSIRelationship]]] = field(default_factory=dict)
+    semantic_model: OssieSemanticModel
+    datasets: dict[str, OssieDataset] = field(default_factory=dict)
+    metrics: dict[str, OssieMetric] = field(default_factory=dict)
+    relationships: list[OssieRelationship] = field(default_factory=list)
+    _adjacency: dict[str, list[tuple[str, OssieRelationship]]] = field(default_factory=dict)
 
     @classmethod
-    def build(cls, semantic_model: OSISemanticModel) -> "ResolvedModel":
+    def build(cls, semantic_model: OssieSemanticModel) -> "ResolvedModel":
         model = cls(semantic_model=semantic_model)
         for dataset in semantic_model.datasets:
             model.datasets[dataset.name] = dataset
@@ -43,7 +43,7 @@ class ResolvedModel:
             model.metrics[metric.name] = metric
         model.relationships = list(semantic_model.relationships or [])
 
-        adjacency: dict[str, list[tuple[str, OSIRelationship]]] = {
+        adjacency: dict[str, list[tuple[str, OssieRelationship]]] = {
             name: [] for name in model.datasets
         }
         for rel in model.relationships:
@@ -60,7 +60,7 @@ class ResolvedModel:
                 seen[match] = None
         return list(seen)
 
-    def join_path(self, dataset_names: list[str] | set[str]) -> list[OSIRelationship]:
+    def join_path(self, dataset_names: list[str] | set[str]) -> list[OssieRelationship]:
         """Relationships connecting the given datasets: union of shortest paths from
         the root to each target dataset (not a full BFS spanning tree — irrelevant
         datasets that merely happen to be closer to the root than a target are not
@@ -82,7 +82,7 @@ class ResolvedModel:
             return []
 
         # BFS from root, recording the edge/predecessor used to first reach each node.
-        predecessor_edge: dict[str, OSIRelationship] = {}
+        predecessor_edge: dict[str, OssieRelationship] = {}
         predecessor_node: dict[str, str] = {}
         visited = {root}
         queue: deque[str] = deque([root])
@@ -103,7 +103,7 @@ class ResolvedModel:
             )
 
         # Union the shortest root->target path edges, in root-to-leaf order, dedup'd.
-        edges: list[OSIRelationship] = []
+        edges: list[OssieRelationship] = []
         added_nodes = {root}
         for target in targets:
             path_nodes: list[str] = []
@@ -116,13 +116,13 @@ class ResolvedModel:
                 added_nodes.add(n)
         return edges
 
-    def resolve_expression(self, expression: OSIExpression, dialect: OSIDialect) -> str:
+    def resolve_expression(self, expression: OssieExpression, dialect: OssieDialect) -> str:
         """Pick the expression text for `dialect`, falling back to ANSI_SQL."""
         by_dialect = {d.dialect: d.expression for d in expression.dialects}
         if dialect in by_dialect:
             return by_dialect[dialect]
-        if OSIDialect.ANSI_SQL in by_dialect:
-            return by_dialect[OSIDialect.ANSI_SQL]
+        if OssieDialect.ANSI_SQL in by_dialect:
+            return by_dialect[OssieDialect.ANSI_SQL]
         raise MissingExpressionError(
             f"No expression for dialect {dialect!r} or ANSI_SQL fallback"
         )

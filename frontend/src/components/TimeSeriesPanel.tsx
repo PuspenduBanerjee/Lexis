@@ -14,11 +14,13 @@ export function TimeSeriesPanel({
   model,
   mode,
   file,
+  connectionId,
   fixedMetric,
 }: {
   model: ModelDetailOut;
-  mode: "demo" | "upload";
+  mode: "demo" | "upload" | "connection";
   file: File | null;
+  connectionId?: number;
   /** If set, locks the metric (hides the picker) - used for the Design tab's
    * per-metric preview, where the metric is already implied by which node is selected. */
   fixedMetric?: string;
@@ -38,6 +40,7 @@ export function TimeSeriesPanel({
       return api.runTimeSeries(model.id, {
         mode,
         file: file ?? undefined,
+        connectionId,
         metric,
         timeDataset: field.dataset,
         timeField: field.field,
@@ -127,7 +130,13 @@ export function TimeSeriesPanel({
             ))}
           </select>
         </label>
-        <button className="primary" disabled={mutation.isPending || !metric || !field} onClick={start}>
+        <button
+          className="primary"
+          disabled={
+            mutation.isPending || !metric || !field || (mode === "connection" && !connectionId)
+          }
+          onClick={start}
+        >
           {mutation.isPending ? "Running…" : "Run"}
         </button>
         {canRollUp && (

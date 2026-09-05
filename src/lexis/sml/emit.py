@@ -14,18 +14,35 @@ on the denominator) becomes an SML `metric_calc` with a synthesized MDX division
 expression - the exact shape SML's own docs use for ratio metrics - referencing
 two plain `metric` objects (reusing an existing one with the same aggregate
 shape when available, e.g. a `total_sales` metric doubling as a ratio's
-numerator, rather than duplicating it). Anything else doesn't decompose that
-way and is excluded with a `LOSSY:`-prefixed warning rather than faked as
-arbitrary MDX (which we don't author beyond that one documented ratio shape).
+numerator, rather than duplicating it). A metric that doesn't decompose either
+way is preserved verbatim (never faked as arbitrary MDX) under a small
+`x_lexis_unconverted_metrics` escape hatch on the emitted `model.yml` - SML
+itself has no vendor-extension slot for an object it can't represent at all -
+so a later `parse_sml_repo()` call restores it exactly rather than losing it
+silently, mirroring the "no silent loss" convention Ossie's other bidirectional
+converters use (see `SML_OSSIE_CONVERTER_PLAN.md`'s Phase 3 section).
+
+If `document` was itself produced by `parse_sml_repo()`, this emitter is
+stash-aware: a dimension whose full original shape (hierarchies, levels,
+calculation_groups, ...) was stashed under `custom_extensions` on the way in is
+re-emitted verbatim instead of re-flattened into a fresh single-level
+synthesis, so an SML -> Ossie -> SML round trip doesn't lose hierarchy
+structure it never needed to lose.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import yaml
 
 from lexis._vendor.ossie import OssieDataset, OssieDialect, OssieDocument
 from lexis.resolved_model import MissingExpressionError, ResolvedModel
-from lexis.sml._common import OSSIE_TO_SML_DATATYPE, decompose_ratio_aggregate, decompose_simple_aggregate
+from lexis.sml._common import (
+    OSSIE_TO_SML_DATATYPE,
+    decompose_ratio_aggregate,
+    decompose_simple_aggregate,
+    read_stash,
+)
 from lexis.sml.models import (
     SmlCatalog,
     SmlConnection,
@@ -125,6 +142,35 @@ def _emit_dimension(
     return {f"dimensions/{dim_name}.yml": _dump(dimension)}, dim_name
 
 
+def _dump_raw(data: dict) -> str:
+    return yaml.dump(data, sort_keys=False, default_flow_style=False, allow_unicode=True)
+
+
+def _leaf_level_of(raw_dimension: dict) -> str:
+    """The dimension's grain-key level unique_name - what a relationship's
+    `to.level` must reference. Falls back to the dimension's own unique_name,
+    matching `_emit_dimension`'s own single-level synthesis convention, if no
+    `level_attributes` entry is marked `is_unique_key`."""
+    for attr in raw_dimension.get("level_attributes") or []:
+        if attr.get("is_unique_key"):
+            return attr["unique_name"]
+    return raw_dimension.get("unique_name")
+
+
+def _stashed_dimensions_by_dataset(stashed_dimensions: dict[str, dict]) -> dict[str, str]:
+    """Reverse-index the stash: physical dataset name -> the (first) stashed
+    dimension unique_name whose `level_attributes` names it. A snowflaked
+    dimension spanning multiple datasets is looked up by whichever of its
+    datasets a relationship or degenerate-dimension pass asks about."""
+    by_dataset: dict[str, str] = {}
+    for dim_name, raw_dim in stashed_dimensions.items():
+        for attr in raw_dim.get("level_attributes") or []:
+            ds = attr.get("dataset")
+            if ds:
+                by_dataset.setdefault(ds, dim_name)
+    return by_dataset
+
+
 def _metric_ref_for_aggregate(
     aggregate: tuple[str, str, str],
     aggregate_index: dict[tuple[str, str, str], str],
@@ -155,6 +201,11 @@ def emit_sml_files(document: OssieDocument) -> SmlEmitResult:
     warnings: list[str] = []
     files: dict[str, str] = {}
 
+    stash = read_stash(semantic_model)
+    stashed_dimensions: dict[str, dict] = stash.get("dimensions", {})
+    stashed_dim_by_dataset = _stashed_dimensions_by_dataset(stashed_dimensions)
+    emitted_dimension_names: set[str] = set()
+
     # --- connections: one per unique (database, schema) pair ---
     dataset_parts: dict[str, tuple[str, str, str]] = {}
     connection_names: dict[tuple[str, str], str] = {}
@@ -171,9 +222,11 @@ def emit_sml_files(document: OssieDocument) -> SmlEmitResult:
             conn = SmlConnection(unique_name=conn_name, database=db, schema_name=schema)
             files[f"connections/{conn_name}.yml"] = _dump(conn)
 
-    # --- datasets (+ a synthesized dimension for every relationship target) ---
+    # --- datasets (+ a dimension for every relationship target: re-emitted
+    # verbatim from the stash if this dataset was originally parsed from one,
+    # else freshly synthesized as a single flat level) ---
     dimension_targets = {rel.to for rel in model.relationships}
-    dimension_key: dict[str, str] = {}  # dataset name -> its synthesized dimension's unique_name
+    dimension_key: dict[str, tuple[str, str]] = {}  # dataset -> (dimension unique_name, leaf level unique_name)
     for dataset in semantic_model.datasets:
         if dataset.name not in dataset_parts:
             continue
@@ -205,10 +258,30 @@ def emit_sml_files(document: OssieDocument) -> SmlEmitResult:
         files[f"datasets/{dataset.name}.yml"] = _dump(sml_dataset)
 
         if dataset.name in dimension_targets:
-            dim_files, dim_name = _emit_dimension(dataset, warnings)
-            files.update(dim_files)
-            if dim_name:
-                dimension_key[dataset.name] = dim_name
+            stashed_name = stashed_dim_by_dataset.get(dataset.name)
+            if stashed_name:
+                raw_dim = stashed_dimensions[stashed_name]
+                if stashed_name not in emitted_dimension_names:
+                    files[f"dimensions/{stashed_name}.yml"] = _dump_raw(raw_dim)
+                    emitted_dimension_names.add(stashed_name)
+                dimension_key[dataset.name] = (stashed_name, _leaf_level_of(raw_dim))
+            else:
+                dim_files, dim_name = _emit_dimension(dataset, warnings)
+                files.update(dim_files)
+                if dim_name:
+                    dimension_key[dataset.name] = (dim_name, dim_name)
+
+    # A degenerate/shared-degenerate dimension (keyed on a fact dataset's own
+    # column) has no relationship pointing at it - `dimension_targets` above
+    # never catches it - so re-emit any stashed dimension not already handled,
+    # as long as its backing dataset(s) are still part of this document.
+    for dim_name, raw_dim in stashed_dimensions.items():
+        if dim_name in emitted_dimension_names:
+            continue
+        backing_datasets = {a.get("dataset") for a in raw_dim.get("level_attributes") or []}
+        if backing_datasets & dataset_parts.keys():
+            files[f"dimensions/{dim_name}.yml"] = _dump_raw(raw_dim)
+            emitted_dimension_names.add(dim_name)
 
     # --- metrics ---
     # First pass: resolve every metric's expression and record which ones decompose
@@ -216,13 +289,16 @@ def emit_sml_files(document: OssieDocument) -> SmlEmitResult:
     # operand (e.g. `total_sales`) regardless of the two metrics' declaration order.
     resolved: list[tuple] = []
     aggregate_index: dict[tuple[str, str, str], str] = {}
+    unconverted_metrics: list[dict[str, Any]] = []
     for metric in semantic_model.metrics or []:
         try:
             expr = model.resolve_expression(metric.expression, OssieDialect.ANSI_SQL)
         except MissingExpressionError:
             warnings.append(
-                f"LOSSY: metric {metric.name!r} has no ANSI_SQL expression; excluded from SML output."
+                f"LOSSY: metric {metric.name!r} has no ANSI_SQL expression; preserved verbatim "
+                "(not a queryable SML metric/metric_calc, but round-trips back to Ossie)."
             )
+            unconverted_metrics.append(metric.model_dump(exclude_none=True, mode="json"))
             resolved.append((metric, None))
             continue
         resolved.append((metric, expr))
@@ -276,36 +352,44 @@ def emit_sml_files(document: OssieDocument) -> SmlEmitResult:
 
         warnings.append(
             f"LOSSY: metric {metric.name!r} expression {expr!r} is not a simple AGG(dataset.column) "
-            "aggregate or a ratio of two such aggregates. SML metric_calc requires MDX, which this "
-            "converter only synthesizes for that ratio shape - excluded from SML output; author it "
-            "by hand as a metric_calc if needed."
+            "aggregate or a ratio of two such aggregates - preserved verbatim (not a queryable SML "
+            "metric/metric_calc, but round-trips back to Ossie) rather than faked as arbitrary MDX."
         )
+        unconverted_metrics.append(metric.model_dump(exclude_none=True, mode="json"))
 
-    # --- model-level relationships (fact -> synthesized dimension) ---
+    # --- model-level relationships (fact -> dimension) ---
     relationships = []
     for rel in model.relationships:
-        dim_name = dimension_key.get(rel.to)
-        if dim_name is None:
+        target = dimension_key.get(rel.to)
+        if target is None:
             warnings.append(
                 f"LOSSY: relationship {rel.name!r} targets dataset {rel.to!r}, which has "
                 "no synthesized dimension; relationship excluded from SML output."
             )
             continue
+        dim_name, leaf_level = target
         relationships.append(
             SmlModelRelationship(
                 unique_name=rel.name,
                 from_end=SmlRelationshipEnd(dataset=rel.from_dataset, join_columns=rel.from_columns),
-                to=SmlRelationshipEnd(dimension=dim_name, level=dim_name),
+                to=SmlRelationshipEnd(dimension=dim_name, level=leaf_level),
             )
         )
 
-    sml_model = SmlModel(
+    sml_model_data: dict[str, Any] = dict(
         unique_name=semantic_model.name,
         label=semantic_model.name,
         description=semantic_model.description,
         relationships=relationships,
         metrics=metric_refs,
     )
+    if unconverted_metrics:
+        # No SML object has a vendor-extension slot to stash an unconvertible
+        # metric on, unlike Ossie's own `custom_extensions` - this small,
+        # clearly-namespaced escape hatch on `model.yml` is this converter's
+        # own, restored by `parse.py`'s matching `x_lexis_unconverted_metrics` read.
+        sml_model_data["x_lexis_unconverted_metrics"] = unconverted_metrics
+    sml_model = SmlModel(**sml_model_data)
     files[f"models/{semantic_model.name}.yml"] = _dump(sml_model)
 
     # --- catalog ---

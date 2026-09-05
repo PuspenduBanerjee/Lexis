@@ -70,7 +70,15 @@ _RATIO_MDX_RE = re.compile(r"^\[Measures\]\.\[(?P<numerator>.+)\]\s*/\s*\[Measur
 # model/catalog fields this converter itself sets or reads; anything else on
 # those two object types (perspectives, drillthroughs, aggregates, partitions,
 # overrides, dataset_properties, ...) is stashed rather than dropped.
-_HANDLED_MODEL_FIELDS = {"unique_name", "object_type", "label", "description", "relationships", "metrics"}
+_HANDLED_MODEL_FIELDS = {
+    "unique_name",
+    "object_type",
+    "label",
+    "description",
+    "relationships",
+    "metrics",
+    "x_lexis_unconverted_metrics",
+}
 _HANDLED_CATALOG_FIELDS = {"unique_name", "object_type", "label", "description"}
 
 
@@ -323,6 +331,24 @@ def parse_sml_repo(directory: str | Path) -> SmlParseResult:
         if raw.get("description"):
             metric_dict["description"] = raw["description"]
         ossie_metrics.append(metric_dict)
+
+    # A metric emit.py couldn't express as a metric/metric_calc at all is
+    # preserved verbatim under model.yml's x_lexis_unconverted_metrics escape
+    # hatch (see emit.py's module docstring) - restore it, unless a real
+    # metric/metric_calc of the same name now exists in this repo (e.g. a human
+    # hand-authored a replacement), in which case that one wins and the stale
+    # stash entry is dropped with a warning, never silently duplicated.
+    existing_metric_names = {m["name"] for m in ossie_metrics}
+    for stashed in model.get("x_lexis_unconverted_metrics") or []:
+        name = stashed.get("name")
+        if name in existing_metric_names:
+            warnings.append(
+                f"a stale preserved-metric stash entry for {name!r} was dropped: a real metric/"
+                "metric_calc of that name now exists in this repo and takes precedence."
+            )
+            continue
+        ossie_metrics.append(stashed)
+        existing_metric_names.add(name)
 
     # --- semantic model + stash for everything with no Ossie equivalent ---
     sem_model: dict[str, Any] = {"name": model.get("unique_name"), "datasets": ossie_datasets}

@@ -82,10 +82,13 @@ def test_ratio_metric_drops_nullif_guard_with_a_warning(tpcds_document):
     )
 
 
-def test_unsupported_metric_expression_is_excluded_with_lossy_warning(tpcds_document):
+def test_unsupported_metric_expression_is_preserved_verbatim_not_dropped(tpcds_document):
     # A three-term expression isn't a simple aggregate or a two-term ratio of them,
-    # so it must still be excluded rather than guessed at. Ossie models are frozen,
-    # so build the modified metric via model_copy rather than mutating in place.
+    # so it can't become a real metric/metric_calc - but per the "no silent loss"
+    # convention (SML_OSSIE_CONVERTER_PLAN.md Phase 3) it must still survive,
+    # stashed under model.yml's x_lexis_unconverted_metrics escape hatch, not just
+    # dropped with a warning. Ossie models are frozen, so build the modified
+    # metric via model_copy rather than mutating in place.
     semantic_model = tpcds_document.semantic_model[0]
     old_metric = semantic_model.metrics[0]
     new_dialect = old_metric.expression.dialects[0].model_copy(
@@ -107,7 +110,13 @@ def test_unsupported_metric_expression_is_excluded_with_lossy_warning(tpcds_docu
     result = emit_sml_files(document)
     assert f"metrics/{new_metric.name}.yml" not in result.files
     lossy = [w for w in result.warnings if w.startswith("LOSSY:")]
-    assert any(new_metric.name in w and "metric_calc requires MDX" in w for w in lossy)
+    assert any(new_metric.name in w and "preserved verbatim" in w for w in lossy)
+
+    model = yaml.safe_load(result.files["models/tpcds_retail_model.yml"])
+    stashed = {m["name"]: m for m in model["x_lexis_unconverted_metrics"]}
+    assert stashed[new_metric.name]["expression"]["dialects"][0]["expression"] == (
+        "SUM(store_sales.ss_ext_sales_price) / COUNT(DISTINCT customer.c_customer_sk) / 2"
+    )
 
 
 def test_model_relationships_target_synthesized_dimensions(tpcds_document):

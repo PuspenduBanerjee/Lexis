@@ -77,7 +77,14 @@ class SmlLevel(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     unique_name: str
-    secondary_attributes: Optional[list[str]] = None
+    # Per SML's dimension.md spec, a level's secondary_attributes are fully
+    # inlined attribute objects (unique_name/dataset/name_column/key_columns/...),
+    # not name-string references into dimension.level_attributes - only
+    # level_attributes themselves can be referenced that way ("Only level
+    # attributes can be used to define relationships between datasets and
+    # other dimensions"). Reusing SmlLevelAttribute's shape here rather than a
+    # separate near-identical model.
+    secondary_attributes: Optional[list[SmlLevelAttribute]] = None
 
 
 class SmlHierarchy(BaseModel):

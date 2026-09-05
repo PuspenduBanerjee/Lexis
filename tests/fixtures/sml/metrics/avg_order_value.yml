@@ -1,0 +1,5 @@
+unique_name: avg_order_value
+object_type: metric_calc
+label: avg_order_value
+description: Ratio of two plain metrics - the shape emit.py itself synthesizes
+expression: "[Measures].[total_revenue]/[Measures].[order_count]"

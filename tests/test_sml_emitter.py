@@ -151,9 +151,20 @@ def test_dimension_has_single_level_with_secondary_attributes(tpcds_document):
     assert len(hierarchy["levels"]) == 1
     level = hierarchy["levels"][0]
     assert level["unique_name"] == "store Dimension"
-    assert "store s_store_id" in level["secondary_attributes"]
 
-    key_attr = next(a for a in store_dim["level_attributes"] if a["unique_name"] == "store Dimension")
+    # secondary_attributes are fully inlined attribute objects (per SML's
+    # dimension.md spec), not name-string references.
+    secondary_by_name = {a["unique_name"]: a for a in level["secondary_attributes"]}
+    assert "store s_store_id" in secondary_by_name
+    assert secondary_by_name["store s_store_id"]["dataset"] == "store"
+    assert secondary_by_name["store s_store_id"]["name_column"] == "s_store_id"
+
+    # Only the one joinable key attribute lives at the dimension level - every
+    # other field is a secondary attribute inlined under the level, not
+    # duplicated here.
+    assert len(store_dim["level_attributes"]) == 1
+    key_attr = store_dim["level_attributes"][0]
+    assert key_attr["unique_name"] == "store Dimension"
     assert key_attr["is_unique_key"] is True
     assert key_attr["dataset"] == "store"
     assert key_attr["key_columns"] == ["s_store_sk"]

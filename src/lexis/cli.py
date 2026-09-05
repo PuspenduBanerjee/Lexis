@@ -69,6 +69,31 @@ def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[
         click.echo(result.content)
 
 
+@main.group("import")
+def import_group() -> None:
+    """Import a third-party semantic model format into an Ossie document."""
+
+
+@import_group.command("sml")
+@click.argument("repo_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("--out", type=click.Path(), required=True, help="Path to write the resulting Ossie YAML document")
+def import_sml(repo_dir: str, out: str) -> None:
+    """Parse an SML repo directory (REPO_DIR) into an Ossie YAML document."""
+    from lexis.sml._common import ConversionError
+    from lexis.sml.parse import parse_sml_repo
+
+    try:
+        result = parse_sml_repo(repo_dir)
+    except ConversionError as exc:
+        raise click.UsageError(str(exc))
+
+    for warning in result.warnings:
+        click.echo(f"warning: {warning}", err=True)
+
+    Path(out).write_text(result.document.to_ossie_yaml())
+    click.echo(f"Wrote {out}", err=True)
+
+
 @main.command("export-demo-dataset")
 @click.option("--out", type=click.Path(dir_okay=False), required=True, help="Path to write the .duckdb file")
 @click.option("--force", is_flag=True, help="Overwrite --out if it already exists")

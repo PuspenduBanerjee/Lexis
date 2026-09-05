@@ -1,0 +1,4 @@
+unique_name: pii_restriction
+object_type: row_security
+label: PII Restriction
+description: No Ossie equivalent - exercises the unsupported-object stash path

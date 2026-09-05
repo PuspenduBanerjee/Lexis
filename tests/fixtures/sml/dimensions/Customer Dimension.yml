@@ -1,0 +1,34 @@
+unique_name: Customer Dimension
+object_type: dimension
+label: Customer Dimension
+type: standard
+
+hierarchies:
+  - unique_name: Customer Dimension
+    levels:
+      - unique_name: Customer Region
+
+      - unique_name: Customer Dimension
+        secondary_attributes:
+          - unique_name: Customer Name
+            label: Customer Name
+            dataset: customers
+            name_column: customer_name
+            key_columns:
+              - customer_name
+
+level_attributes:
+  - unique_name: Customer Region
+    label: Customer Region
+    dataset: customers
+    name_column: region
+    key_columns:
+      - region
+
+  - unique_name: Customer Dimension
+    label: Customer ID
+    is_unique_key: true
+    dataset: customers
+    name_column: customer_id
+    key_columns:
+      - customer_id

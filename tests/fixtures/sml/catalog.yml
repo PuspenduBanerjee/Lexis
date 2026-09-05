@@ -1,0 +1,4 @@
+unique_name: sales_catalog
+object_type: catalog
+label: Sales Catalog
+description: Hand-authored SML fixture for Phase 2 parser tests

@@ -46,6 +46,34 @@ OSSIE_TO_SML_DATATYPE = {
 }
 
 
+def sml_datatype_to_ossie(data_type: Optional[str]) -> Optional[OssieDataType]:
+    """Best-effort reverse of OSSIE_TO_SML_DATATYPE. SML's `data_type` is
+    free-form (e.g. "decimal(7,2)", "varchar(50)") rather than a strict enum, so
+    this matches on a lowercased prefix rather than exact equality. Returns None
+    (rather than guessing) for anything unrecognized - the Ossie field is simply
+    emitted with no `datatype`."""
+    if not data_type:
+        return None
+    lowered = data_type.strip().lower()
+    if lowered.startswith(("decimal", "numeric")):
+        return OssieDataType.DECIMAL
+    if lowered.startswith(("double", "float", "real")):
+        return OssieDataType.FLOAT
+    if lowered.startswith(("int", "bigint", "smallint", "tinyint")):
+        return OssieDataType.INTEGER
+    if lowered.startswith(("bool",)):
+        return OssieDataType.BOOLEAN
+    if lowered.startswith("datetime") or lowered.startswith("timestamp"):
+        return OssieDataType.DATE_TIME
+    if lowered.startswith("date"):
+        return OssieDataType.DATE
+    if lowered.startswith("time"):
+        return OssieDataType.TIME
+    if lowered.startswith(("string", "varchar", "char", "text")):
+        return OssieDataType.STRING
+    return None
+
+
 class ConversionError(Exception):
     """Raised when an input cannot be converted."""
 

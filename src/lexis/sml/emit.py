@@ -88,39 +88,39 @@ def _emit_dimension(
     key_field = dataset.primary_key[0] if dataset.primary_key else fields[0].name
     is_time = any(f.is_time_dimension() for f in fields)
 
-    level_attributes = [
+    # Per SML's dimension.md spec, dimension-level `level_attributes` holds only
+    # the one joinable key attribute per level ("Only level attributes can be
+    # used to define relationships between datasets and other dimensions") -
+    # our single synthesized level has exactly one. Every other field is a
+    # non-joinable secondary attribute, inlined directly under the level rather
+    # than duplicated at the dimension level.
+    key_attribute = SmlLevelAttribute(
+        unique_name=dim_name,
+        dataset=dataset.name,
+        name_column=key_field,
+        key_columns=[key_field],
+        is_unique_key=True,
+    )
+    secondary_attributes = [
         SmlLevelAttribute(
-            unique_name=dim_name,
+            unique_name=f"{dataset.name} {f.name}",
             dataset=dataset.name,
-            name_column=key_field,
-            key_columns=[key_field],
-            is_unique_key=True,
+            name_column=f.name,
+            key_columns=[f.name],
         )
+        for f in fields
+        if f.name != key_field
     ]
-    secondary_attribute_names: list[str] = []
-    for f in fields:
-        if f.name == key_field:
-            continue
-        attr_name = f"{dataset.name} {f.name}"
-        level_attributes.append(
-            SmlLevelAttribute(
-                unique_name=attr_name,
-                dataset=dataset.name,
-                name_column=f.name,
-                key_columns=[f.name],
-            )
-        )
-        secondary_attribute_names.append(attr_name)
 
     hierarchy = SmlHierarchy(
         unique_name=dim_name,
-        levels=[SmlLevel(unique_name=dim_name, secondary_attributes=secondary_attribute_names or None)],
+        levels=[SmlLevel(unique_name=dim_name, secondary_attributes=secondary_attributes or None)],
     )
     dimension = SmlDimension(
         unique_name=dim_name,
         type="time" if is_time else "standard",
         hierarchies=[hierarchy],
-        level_attributes=level_attributes,
+        level_attributes=[key_attribute],
     )
     return {f"dimensions/{dim_name}.yml": _dump(dimension)}, dim_name
 

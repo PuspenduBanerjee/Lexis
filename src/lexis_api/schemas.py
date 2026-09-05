@@ -24,6 +24,7 @@ TARGET = Literal[
     "dbt",
     "mcp",
     "snowflake_semantic_view",
+    "sml",
 ]
 
 TIME_GRAIN = Literal["year", "quarter", "month", "day"]
@@ -101,7 +102,10 @@ class TranspileIn(BaseModel):
 
 
 class TranspileOut(BaseModel):
-    content: str
+    # `sml` is the one multi-file target - one YAML file per SML object - so
+    # `content` is a `dict[str, str]` (relative filename -> content) there; every
+    # other target still returns a single `str`. Mirrors dispatch.TranspileResult.
+    content: str | dict[str, str]
     warnings: list[str]
 
 

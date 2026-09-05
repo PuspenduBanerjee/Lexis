@@ -38,7 +38,7 @@ Issues = "https://github.com/PuspenduBanerjee/Lexis/issues"
 
 [project.optional-dependencies]
 mcp = [
-    "mcp>=1.9",
+    "mcp>=1.9,<2",
     "anyio>=4.0",
     "duckdb>=1.0",
     "snowflake-connector-python>=3.12",
@@ -58,7 +58,7 @@ api = [
     "python-multipart>=0.0.9",
     "duckdb>=1.0",
     "snowflake-connector-python>=3.12",
-    "mcp>=1.9",
+    "mcp>=1.9,<2",
 ]
 
 [project.scripts]

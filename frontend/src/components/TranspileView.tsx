@@ -2,12 +2,14 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, ApiError } from "../api/client";
 import { ALL_TARGETS, SQL_TARGETS, type ModelDetailOut, type Target } from "../api/types";
+import { FileTree } from "./FileTree";
 import { fieldRefs } from "../lib/fieldRefs";
 
 export function TranspileView({ model }: { model: ModelDetailOut }) {
   const [target, setTarget] = useState<Target>("duckdb");
   const [metric, setMetric] = useState(model.metrics[0]?.name ?? "");
   const [groupBy, setGroupBy] = useState<string[]>([]);
+  const [activeFile, setActiveFile] = useState<string | null>(null);
   const isSql = (SQL_TARGETS as string[]).includes(target);
   const refs = fieldRefs(model);
 
@@ -18,7 +20,12 @@ export function TranspileView({ model }: { model: ModelDetailOut }) {
         metric: isSql ? metric : undefined,
         group_by: isSql && groupBy.length > 0 ? groupBy : undefined,
       }),
+    onSuccess: (data) => {
+      setActiveFile(typeof data.content === "string" ? null : (Object.keys(data.content)[0] ?? null));
+    },
   });
+
+  const files = mutation.data && typeof mutation.data.content !== "string" ? mutation.data.content : null;
 
   return (
     <div className="stack">
@@ -83,7 +90,14 @@ export function TranspileView({ model }: { model: ModelDetailOut }) {
               warning: {w}
             </p>
           ))}
-          <pre>{mutation.data.content}</pre>
+          {files ? (
+            <div className="file-explorer">
+              <FileTree files={files} activeFile={activeFile} onSelect={setActiveFile} />
+              <pre>{activeFile ? files[activeFile] : "Select a file"}</pre>
+            </div>
+          ) : (
+            <pre>{mutation.data.content as string}</pre>
+          )}
         </div>
       )}
     </div>

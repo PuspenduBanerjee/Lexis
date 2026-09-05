@@ -167,6 +167,63 @@ pre {
   margin-bottom: 16px;
 }
 
+.file-explorer {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.file-explorer pre {
+  flex: 1;
+  min-width: 0;
+  max-height: 480px;
+  overflow: auto;
+  margin: 0;
+}
+
+.file-tree {
+  flex: 0 0 240px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  max-height: 480px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.file-tree-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.file-tree-item:hover {
+  background: var(--bg-alt);
+}
+
+.file-tree-file.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.file-tree-folder-label {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.file-tree-children {
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+  margin-left: 8px;
+}
+
 .stack {
   display: flex;
   flex-direction: column;

@@ -1,15 +1,16 @@
-"""Live MCP endpoint: `POST/GET/DELETE /api/models/{model_id}/mcp?connection_id=<id>`.
+"""Two live MCP endpoints, both mounted (not normal `APIRouter`s - see `main.py`)
+because the MCP Streamable HTTP transport (`StreamableHTTPSessionManager`) is a raw
+ASGI app bound to one `Server` instance built fresh per request, so a small Starlette
+`Route` with a raw ASGI endpoint is needed instead of FastAPI `Depends`-based routing.
+Auth/lookup logic is intentionally re-derived from `deps.py`'s plain (non-`Depends`)
+helpers rather than FastAPI's dependency injection, which doesn't apply outside
+normal routes.
 
-Mounted (not a normal `APIRouter`, see `main.py`) because the MCP Streamable HTTP
-transport (`StreamableHTTPSessionManager`) is a raw ASGI app bound to one `Server`
-instance, and that `Server` differs per `(model_id, connection_id)` pair - so instead
-of FastAPI `Depends`-based routing, a small Starlette `Route` with a raw ASGI endpoint
-resolves `model_id` from the path (Starlette still populates `scope["path_params"]`
-for class-based/raw-ASGI endpoints, not just `request -> response` ones), builds a
-fresh `Server` + session manager scoped to that request, and drives the transport
-directly. Auth/lookup logic is intentionally re-derived from `deps.py`'s plain
-(non-`Depends`) helpers rather than FastAPI's dependency injection, which doesn't
-apply outside normal routes.
+- `POST/GET/DELETE /api/models/{model_id}/mcp?connection_id=<id>`: one model+connection
+  fixed in the URL, one `query_<metric>` tool per metric (`_MCPModelEndpoint`).
+- `POST/GET/DELETE /api/mcp`: workspace-wide - model_id/connection_id are supplied per
+  tool call instead (`_MCPWorkspaceEndpoint`, see `mcp_workspace.py`), so one client
+  connection can query any model+connection without reconnecting to a different URL.
 
 Each MCP tool call opens (and closes) its own connection via the existing
 `connection_runtime.open_connection` - same fresh-per-query cost model the `/run`
@@ -34,6 +35,7 @@ from lexis_api.config import settings
 from lexis_api.connection_runtime import emitter_for_connection_type, open_connection
 from lexis_api.db import SessionLocal
 from lexis_api.deps import find_connection_or_404, find_model_or_404, find_user_or_401
+from lexis_api.mcp_workspace import build_workspace_server
 from lexis_api.query_runtime import run_metric_query as run_metric_query_generic
 
 
@@ -86,4 +88,37 @@ class _MCPModelEndpoint:
 
 mcp_asgi_app = Starlette(
     routes=[Route("/{model_id}/mcp", _MCPModelEndpoint(), methods=["GET", "POST", "DELETE"])]
+)
+
+
+class _MCPWorkspaceEndpoint:
+    """Raw ASGI callable for the workspace-wide MCP endpoint (see module docstring).
+    Only auth (`X-Account-Id`) comes from the request - everything else is a tool
+    call argument, resolved fresh per call inside `mcp_workspace.build_workspace_server`."""
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        db = SessionLocal()
+        try:
+            request = Request(scope, receive)
+            try:
+                user_id_raw = request.headers.get("x-account-id")
+                user_id = int(user_id_raw) if user_id_raw is not None else settings.default_user_id
+                find_user_or_401(db, user_id)
+            except (TypeError, ValueError) as exc:
+                await JSONResponse({"detail": str(exc)}, status_code=422)(scope, receive, send)
+                return
+            except HTTPException as exc:
+                await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(scope, receive, send)
+                return
+
+            server = build_workspace_server(db)
+            session_manager = StreamableHTTPSessionManager(app=server, stateless=True, json_response=True)
+            async with session_manager.run():
+                await session_manager.handle_request(scope, receive, send)
+        finally:
+            db.close()
+
+
+mcp_workspace_asgi_app = Starlette(
+    routes=[Route("/", _MCPWorkspaceEndpoint(), methods=["GET", "POST", "DELETE"])]
 )

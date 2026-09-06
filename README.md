@@ -380,6 +380,30 @@ curl -X POST "http://localhost:8000/api/models/1/mcp?connection_id=<id-from-abov
 Each tool call opens the connection fresh (same per-request cost model the `/run`
 endpoint already has) and returns the metric's real result rows, not just the schema.
 
+#### A workspace-wide alternative: switch models/connections without reconnecting
+
+The endpoint above fixes one model+connection in the URL - reasonable for a client
+that only ever cares about one model, but it means picking a different model or
+connection means reconnecting to a different URL. `POST/GET/DELETE /api/mcp` (no
+`model_id`/`connection_id` in the URL at all) is the alternative: one connection,
+four generic tools, `model_id`/`connection_id` supplied as **tool-call arguments**
+instead:
+
+- `list_models` - every model in the workspace (id, name, description)
+- `list_connections` - every connection (id, name, type)
+- `list_metrics(model_id)` - a model's metrics, each with its description and valid
+  `group_by` references (the same data the per-model endpoint bakes into each
+  `query_<metric>` tool's schema, just returned as data here instead)
+- `query_metric(model_id, metric, connection_id, group_by?)` - runs it
+
+The trade-off: the per-model endpoint's one-governed-tool-per-metric design (a
+distinct `query_<metric>` tool, `group_by` constrained to a real enum in the JSON
+schema itself) becomes one generic `query_metric` tool instead, since the tool
+schema can no longer depend on which `model_id` shows up in a given call - an
+agent has to call `list_metrics` first to discover what's valid rather than having
+it enforced by the schema. Point either the `mcp-remote` bridge (below) or a
+tunnel at `http://localhost:8000/api/mcp` instead of the per-model URL to use it.
+
 ### Approach 2: `mcp-remote` as a local stdio bridge (no public exposure)
 
 When you add a **custom (remote) connector** in Claude Desktop's Settings → Connectors

@@ -1,11 +1,11 @@
-"""CLI tests for `semantica export-demo-dataset` (the `transpile` command is
+"""CLI tests for `lexis export-demo-dataset` (the `transpile` command is
 exercised end-to-end via the README's own examples, not unit-tested here)."""
 
 import duckdb
 import pytest
 from click.testing import CliRunner
 
-from semantica.cli import main
+from lexis.cli import main
 
 
 @pytest.fixture()

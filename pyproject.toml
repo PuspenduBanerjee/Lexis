@@ -3,24 +3,52 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "semantica"
+name = "lexis-cli"
 version = "0.1.0"
 description = "Ossie-native semantic layer: author models once, transpile to warehouse-native SQL and BI/AI consumer formats"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+authors = [
+    { name = "Puspendu Banerjee" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Code Generators",
+]
 dependencies = [
     "pydantic>=2.0",
     "PyYAML>=6.0",
     "click>=8.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/PuspenduBanerjee/Lexis"
+Repository = "https://github.com/PuspenduBanerjee/Lexis"
+Issues = "https://github.com/PuspenduBanerjee/Lexis/issues"
+
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.9,<2",
+    "anyio>=4.0",
+    "duckdb>=1.0",
+    "snowflake-connector-python>=3.12",
+]
 dev = [
     "pytest>=8.0",
     "duckdb>=1.0",
     "httpx2>=2.0",
     "jsonschema>=4.0",
+    "hypothesis>=6.100",
 ]
 api = [
     "fastapi>=0.115",
@@ -31,19 +59,14 @@ api = [
     "python-multipart>=0.0.9",
     "duckdb>=1.0",
     "snowflake-connector-python>=3.12",
-    "mcp>=1.9",
-]
-mcp = [
-    "mcp>=1.9",
-    "duckdb>=1.0",
-    "snowflake-connector-python>=3.12",
+    "mcp>=1.9,<2",
 ]
 
 [project.scripts]
-semantica = "semantica.cli:main"
+lexis = "lexis.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/semantica", "src/semantica_api"]
+packages = ["src/lexis"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

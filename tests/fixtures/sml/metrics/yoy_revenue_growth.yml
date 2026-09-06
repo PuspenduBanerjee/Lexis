@@ -1,0 +1,5 @@
+unique_name: yoy_revenue_growth
+object_type: metric_calc
+label: yoy_revenue_growth
+description: Arbitrary hand-written MDX with no SQL equivalent - exercises pass-through
+expression: "([Measures].[total_revenue] - ([Measures].[total_revenue], [Date Dimension].[Date Dimension].PrevMember)) / ([Measures].[total_revenue], [Date Dimension].[Date Dimension].PrevMember)"

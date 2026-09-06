@@ -1,4 +1,4 @@
-Semantica
+Lexis
 Copyright 2026 Puspendu Banerjee
 
 This product includes software from the following third-party projects:
@@ -8,4 +8,4 @@ Apache Ossie (incubating) reference Python types
   Formerly Open Semantic Interchange (OSI): https://github.com/open-semantic-interchange/OSI
   Copyright The Apache Software Foundation
   Licensed under the Apache License, Version 2.0
-  Vendored at src/semantica/_vendor/ossie/ (see NOTICE.md there for details)
+  Vendored at src/lexis/_vendor/ossie/ (see NOTICE.md there for details)

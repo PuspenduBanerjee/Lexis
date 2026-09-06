@@ -1,4 +1,4 @@
-from semantica._vendor.ossie import OssieDocument
+from lexis._vendor.ossie import OssieDocument
 
 
 def test_parses_tpcds_fixture_into_ossie_document(tpcds_document):

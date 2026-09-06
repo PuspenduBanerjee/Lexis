@@ -1,6 +1,6 @@
 import yaml
 
-from semantica.transpilers.cube import emit_cube_yaml
+from lexis.transpilers.cube import emit_cube_yaml
 
 
 def test_emits_well_formed_cube_schema(tpcds_model):

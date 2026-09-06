@@ -4,6 +4,6 @@ __pycache__/
 *.egg-info/
 .venv/
 .claude/settings.local.json
-semantica_dev.db
+lexis_dev.db
 *.duckdb
 .dev/

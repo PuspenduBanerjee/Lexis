@@ -1,4 +1,4 @@
-from semantica.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
+from lexis.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
 
 
 def test_emits_well_formed_ddl_skeleton(tpcds_model):

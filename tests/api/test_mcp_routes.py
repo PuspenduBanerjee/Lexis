@@ -1,4 +1,4 @@
-"""End-to-end proof that the mounted MCP endpoint (see `semantica_api/routers/mcp.py`)
+"""End-to-end proof that the mounted MCP endpoint (see `lexis_api/routers/mcp.py`)
 actually executes metric queries, not just serves the schema (that part is already
 covered by `test_mcp_target` in `test_transpile_routes.py`). Drives the raw MCP
 Streamable HTTP JSON-RPC wire protocol directly through `TestClient` - no need for the
@@ -8,7 +8,7 @@ plain JSON body.
 
 import pytest
 
-from semantica.demo_data import export_demo_dataset
+from lexis.demo_data import export_demo_dataset
 
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
 

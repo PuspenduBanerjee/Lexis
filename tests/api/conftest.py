@@ -1,5 +1,5 @@
 """Test setup for the API: a throwaway SQLite file (env var set before any
-`semantica_api` import so `config.settings`/`db.engine` point at it), reset to a
+`lexis_api` import so `config.settings`/`db.engine` point at it), reset to a
 fresh, freshly-seeded schema before every test for full isolation.
 """
 
@@ -10,13 +10,13 @@ import pytest
 
 _tmp_fd, _tmp_path = tempfile.mkstemp(suffix=".db")
 os.close(_tmp_fd)
-os.environ["SEMANTICA_DATABASE_URL"] = f"sqlite:///{_tmp_path}"
+os.environ["LEXIS_DATABASE_URL"] = f"sqlite:///{_tmp_path}"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from semantica_api.db import Base, SessionLocal, engine  # noqa: E402
-from semantica_api.main import app  # noqa: E402
-from semantica_api.seed import seed_default_users  # noqa: E402
+from lexis_api.db import Base, SessionLocal, engine  # noqa: E402
+from lexis_api.main import app  # noqa: E402
+from lexis_api.seed import seed_default_users  # noqa: E402
 
 ROLE_TO_ID = {"admin": 1, "editor": 2, "viewer": 3}
 
@@ -41,7 +41,7 @@ def client() -> TestClient:
 @pytest.fixture()
 def client_as(client: TestClient):
     def _make(role: str) -> TestClient:
-        client.headers.update({"X-User-Id": str(ROLE_TO_ID[role])})
+        client.headers.update({"X-Account-Id": str(ROLE_TO_ID[role])})
         return client
 
     return _make

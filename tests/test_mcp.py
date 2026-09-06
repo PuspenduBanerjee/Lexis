@@ -1,6 +1,6 @@
 import json
 
-from semantica.transpilers.mcp import build_mcp_tool_manifest
+from lexis.transpilers.mcp import build_mcp_tool_manifest
 
 
 def test_one_tool_per_metric(tpcds_model):

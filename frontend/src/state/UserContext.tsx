@@ -8,7 +8,7 @@ export interface DemoUser {
   role: Role;
 }
 
-// The 3 users seeded by semantica_api/seed.py. Kept in sync manually - this is a
+// The 3 users seeded by lexis_api/seed.py. Kept in sync manually - this is a
 // stub auth UI, not a real user directory.
 export const SEEDED_USERS: DemoUser[] = [
   { id: 1, username: "admin", role: "admin" },
@@ -16,7 +16,7 @@ export const SEEDED_USERS: DemoUser[] = [
   { id: 3, username: "viewer1", role: "viewer" },
 ];
 
-const STORAGE_KEY = "semantica.currentUserId";
+const STORAGE_KEY = "lexis.currentUserId";
 
 interface UserContextValue {
   user: DemoUser;

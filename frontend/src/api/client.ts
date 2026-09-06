@@ -42,7 +42,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         ? { "Content-Type": "application/json" }
         : {}),
       ...options.headers,
-      "X-User-Id": String(currentUserId),
+      "X-Account-Id": String(currentUserId),
     },
   });
   if (!res.ok) {
@@ -128,7 +128,7 @@ export const api = {
   // triggering a browser download is a side effect rather than data the caller uses.
   exportDemoDataset: async (): Promise<void> => {
     const res = await fetch("/api/demo-dataset/export", {
-      headers: { "X-User-Id": String(getCurrentUserId()) },
+      headers: { "X-Account-Id": String(getCurrentUserId()) },
     });
     if (!res.ok) {
       const detail = await res.json().catch(() => null);

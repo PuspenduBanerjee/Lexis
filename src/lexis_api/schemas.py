@@ -95,6 +95,15 @@ class UpdateModelIn(BaseModel):
     yaml_text: str
 
 
+class ImportSmlOut(BaseModel):
+    """Response for importing an SML repo as a new model - same shape a normal
+    `POST /api/models` returns, plus any `parse_sml_repo` warnings (unsupported
+    object types, unconvertible metric_calc MDX, ...) the caller should surface."""
+
+    model: ModelDetailOut
+    warnings: list[str]
+
+
 class TranspileIn(BaseModel):
     target: TARGET
     metric: str | None = None

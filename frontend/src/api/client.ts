@@ -4,6 +4,7 @@ import type {
   ConnectionTestOut,
   CreateModelIn,
   GraphEditIn,
+  ImportSmlOut,
   ModelDetailOut,
   ModelSummaryOut,
   RunDuckDbOut,
@@ -63,6 +64,19 @@ export const api = {
     request<ModelDetailOut>("/models", { method: "POST", body: JSON.stringify(body) }),
   updateModel: (id: number, body: UpdateModelIn) =>
     request<ModelDetailOut>(`/models/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  importSml: (files: FileList, name?: string) => {
+    const form = new FormData();
+    // Each file's relative path (e.g. "dimensions/Customer Dimension.yml", set by
+    // the browser's folder-picker input) travels as the multipart filename - the
+    // 3rd `append` arg overrides what `file.name` would otherwise send, since
+    // `parse_sml_repo` needs the real directory structure to resolve, not just a
+    // flat bag of basenames.
+    for (const file of Array.from(files)) {
+      form.append("files", file, file.webkitRelativePath || file.name);
+    }
+    if (name) form.set("name", name);
+    return request<ImportSmlOut>("/models/import/sml", { method: "POST", body: form });
+  },
   updateModelGraph: (id: number, body: GraphEditIn) =>
     request<ModelDetailOut>(`/models/${id}/graph`, { method: "PUT", body: JSON.stringify(body) }),
   deleteModel: (id: number) => request<void>(`/models/${id}`, { method: "DELETE" }),

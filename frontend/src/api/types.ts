@@ -66,6 +66,11 @@ export interface UpdateModelIn {
   yaml_text: string;
 }
 
+export interface ImportSmlOut {
+  model: ModelDetailOut;
+  warnings: string[];
+}
+
 export type Target =
   | "duckdb"
   | "postgres"

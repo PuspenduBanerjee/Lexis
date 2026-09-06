@@ -35,16 +35,35 @@ if [[ -z "$PINNED_SHA" ]]; then
   exit 1
 fi
 
-git -C "$SUBMODULE_DIR" fetch --quiet origin
+# Retry a few times with backoff before declaring the pin unreachable: a commit
+# that was just pushed upstream can briefly appear "not yet reachable" to a fresh
+# clone/fetch due to ordinary GitHub backend replication lag (observed in CI: a
+# pin one or two commits behind main failed right after an unrelated upstream
+# push landed seconds earlier, then succeeded on a plain re-run with no code or
+# pin change at all). A real bad pin (a local-only commit) will still fail every
+# attempt, so this only adds latency to the genuine-error path, not silence it.
+MAX_ATTEMPTS=3
+RETRY_DELAY_SECONDS=10
 
-if git -C "$SUBMODULE_DIR" branch -r --contains "$PINNED_SHA" 2>/dev/null | grep -q .; then
-  echo "OK: $SUBMODULE_DIR is pinned to $PINNED_SHA, reachable from upstream origin"
-  exit 0
-fi
+for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+  git -C "$SUBMODULE_DIR" fetch --quiet origin
+
+  if git -C "$SUBMODULE_DIR" branch -r --contains "$PINNED_SHA" 2>/dev/null | grep -q .; then
+    echo "OK: $SUBMODULE_DIR is pinned to $PINNED_SHA, reachable from upstream origin"
+    exit 0
+  fi
+
+  if [[ "$attempt" -lt "$MAX_ATTEMPTS" ]]; then
+    echo "warning: $PINNED_SHA not yet visible as reachable from upstream (attempt $attempt/$MAX_ATTEMPTS)" \
+      "- this can happen briefly after an upstream push; retrying in ${RETRY_DELAY_SECONDS}s..." >&2
+    sleep "$RETRY_DELAY_SECONDS"
+  fi
+done
 
 cat >&2 <<EOF
 error: $SUBMODULE_DIR is pinned to $PINNED_SHA, which is NOT reachable from any
-       remote branch of https://github.com/apache/ossie.
+       remote branch of https://github.com/apache/ossie (checked $MAX_ATTEMPTS times,
+       ${RETRY_DELAY_SECONDS}s apart).
 
 This usually means someone ran 'git commit' *inside* third_party/ossie (creating a
 local-only commit) and then 'git add third_party/ossie' in the superproject picked up

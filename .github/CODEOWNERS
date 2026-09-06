@@ -1,0 +1,8 @@
+# Code owners for this repository.
+#
+# The branch protection ruleset on `main` requires review from a code owner on
+# every PR - without this file that requirement has nobody to satisfy it, which
+# is what was blocking PR merges. One catch-all rule: the repo owner reviews
+# everything for now; split this out by path (e.g. `/frontend/ @someone`) if
+# more reviewers join.
+* @PuspenduBanerjee

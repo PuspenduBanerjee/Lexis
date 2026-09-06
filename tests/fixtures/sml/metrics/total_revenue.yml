@@ -1,0 +1,7 @@
+unique_name: total_revenue
+object_type: metric
+label: total_revenue
+description: Total order revenue
+calculation_method: sum
+dataset: orders
+column: amount

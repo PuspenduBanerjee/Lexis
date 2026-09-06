@@ -1,0 +1,18 @@
+unique_name: Date Dimension
+object_type: dimension
+label: Date Dimension
+type: time
+
+hierarchies:
+  - unique_name: Date Dimension
+    levels:
+      - unique_name: Date Dimension
+
+level_attributes:
+  - unique_name: Date Dimension
+    label: Order Date
+    is_unique_key: true
+    dataset: orders
+    name_column: order_date
+    key_columns:
+      - order_date

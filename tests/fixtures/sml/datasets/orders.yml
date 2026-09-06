@@ -1,0 +1,14 @@
+unique_name: orders
+object_type: dataset
+label: orders
+connection_id: Main Connection
+table: orders
+columns:
+  - name: order_id
+    data_type: int
+  - name: customer_id
+    data_type: int
+  - name: order_date
+    data_type: date
+  - name: amount
+    data_type: decimal(10,2)

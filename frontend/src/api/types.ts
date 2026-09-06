@@ -66,6 +66,11 @@ export interface UpdateModelIn {
   yaml_text: string;
 }
 
+export interface ImportSmlOut {
+  model: ModelDetailOut;
+  warnings: string[];
+}
+
 export type Target =
   | "duckdb"
   | "postgres"
@@ -75,10 +80,11 @@ export type Target =
   | "cube"
   | "dbt"
   | "mcp"
-  | "snowflake_semantic_view";
+  | "snowflake_semantic_view"
+  | "sml";
 
 export const SQL_TARGETS: Target[] = ["duckdb", "postgres", "bigquery", "databricks", "snowflake"];
-export const ALL_TARGETS: Target[] = [...SQL_TARGETS, "cube", "dbt", "mcp", "snowflake_semantic_view"];
+export const ALL_TARGETS: Target[] = [...SQL_TARGETS, "cube", "dbt", "mcp", "snowflake_semantic_view", "sml"];
 
 export interface TranspileIn {
   target: Target;
@@ -87,7 +93,10 @@ export interface TranspileIn {
 }
 
 export interface TranspileOut {
-  content: string;
+  // `sml` is the one multi-file target - one YAML file per SML object - so
+  // `content` is a `Record<string, string>` (relative filename -> content) there;
+  // every other target still returns a single `string`.
+  content: string | Record<string, string>;
   warnings: string[];
 }
 

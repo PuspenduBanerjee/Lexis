@@ -1,0 +1,20 @@
+unique_name: sales_model
+object_type: model
+label: sales_model
+description: Test sales semantic model
+
+relationships:
+  - unique_name: orders_to_customer
+    from:
+      dataset: orders
+      join_columns:
+        - customer_id
+    to:
+      dimension: Customer Dimension
+      level: Customer Dimension
+
+metrics:
+  - unique_name: total_revenue
+  - unique_name: order_count
+  - unique_name: avg_order_value
+  - unique_name: yoy_revenue_growth

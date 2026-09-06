@@ -41,7 +41,7 @@ def client() -> TestClient:
 @pytest.fixture()
 def client_as(client: TestClient):
     def _make(role: str) -> TestClient:
-        client.headers.update({"X-User-Id": str(ROLE_TO_ID[role])})
+        client.headers.update({"X-Account-Id": str(ROLE_TO_ID[role])})
         return client
 
     return _make

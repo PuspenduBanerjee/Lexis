@@ -1,0 +1,4 @@
+unique_name: Main Connection
+object_type: connection
+database: salesdb
+schema: public

@@ -42,7 +42,11 @@ def build_tpcds_demo_connection(target: str = ":memory:") -> duckdb.DuckDBPyConn
         "ss_ext_sales_price DOUBLE, ss_net_profit DOUBLE)"
     )
     con.execute("CREATE TABLE tpcds.public.customer (c_customer_sk INT)")
-    con.execute("CREATE TABLE tpcds.public.item (i_item_sk INT, i_category VARCHAR)")
+    con.execute(
+        "CREATE TABLE tpcds.public.item ("
+        "i_item_sk INT, i_item_id VARCHAR, i_item_desc VARCHAR, i_brand VARCHAR, "
+        "i_category VARCHAR, i_current_price DOUBLE)"
+    )
     con.execute(
         "CREATE TABLE tpcds.public.date_dim ("
         "d_date_sk INT, d_date DATE, d_year INT, d_quarter_name VARCHAR, d_month_name VARCHAR)"
@@ -53,7 +57,11 @@ def build_tpcds_demo_connection(target: str = ":memory:") -> duckdb.DuckDBPyConn
         "(3,12,102,1000,40.0,4.0),(4,12,102,1000,60.0,6.0),(5,12,102,1000,25.0,2.5),(6,12,102,1000,35.0,3.5)"
     )
     con.execute("INSERT INTO tpcds.public.customer VALUES (100),(101)")
-    con.execute("INSERT INTO tpcds.public.item VALUES (10,'Electronics'),(11,'Books')")
+    con.execute(
+        "INSERT INTO tpcds.public.item VALUES "
+        "(10,'ITEM-10','Wireless noise-cancelling headphones','SoundWave','Electronics',129.99),"
+        "(11,'ITEM-11','Hardcover mystery novel','Northwind Press','Books',14.99)"
+    )
     con.execute(
         "INSERT INTO tpcds.public.date_dim VALUES "
         "(1,DATE '2023-01-15',2023,'2023Q1','January'),"

@@ -51,7 +51,7 @@ class _MCPModelEndpoint:
                 if connection_id_raw is None:
                     raise ValueError("connection_id query parameter is required")
                 connection_id = int(connection_id_raw)
-                user_id_raw = request.headers.get("x-user-id")
+                user_id_raw = request.headers.get("x-account-id")
                 user_id = int(user_id_raw) if user_id_raw is not None else settings.default_user_id
 
                 find_user_or_401(db, user_id)

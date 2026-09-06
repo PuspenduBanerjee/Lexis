@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { useUser } from "../state/UserContext";
@@ -18,6 +18,26 @@ export function ModelListPage() {
       queryClient.invalidateQueries({ queryKey: ["models"] });
       setName("");
       setYamlText("");
+    },
+  });
+
+  const smlFolderInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    // `webkitdirectory` has no first-class React prop - set the DOM property
+    // directly so the native file picker offers "choose a folder" instead of
+    // individual files, while still yielding a flat FileList with each file's
+    // relative path on `webkitRelativePath`.
+    if (smlFolderInputRef.current) smlFolderInputRef.current.webkitdirectory = true;
+  }, []);
+  const [smlName, setSmlName] = useState("");
+  const [smlFiles, setSmlFiles] = useState<FileList | null>(null);
+  const importSmlMutation = useMutation({
+    mutationFn: () => api.importSml(smlFiles!, smlName || undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["models"] });
+      setSmlName("");
+      setSmlFiles(null);
+      if (smlFolderInputRef.current) smlFolderInputRef.current.value = "";
     },
   });
 
@@ -85,6 +105,57 @@ export function ModelListPage() {
                 ? JSON.stringify(createMutation.error.detail)
                 : String(createMutation.error)}
             </p>
+          )}
+        </div>
+      )}
+
+      {canCreate && (
+        <div className="card">
+          <h3>Import from SML</h3>
+          <p className="muted">
+            Choose the root folder of an AtScale SML repo (catalog.yml, connections/,
+            datasets/, dimensions/, metrics/, models/) - every *.yml file inside is
+            parsed into a new Ossie model.
+          </p>
+          <div className="field-row">
+            <label>Name (optional, defaults to the SML model's own name)</label>
+            <input type="text" value={smlName} onChange={(e) => setSmlName(e.target.value)} />
+          </div>
+          <div className="field-row">
+            <label>SML repo folder</label>
+            <input
+              ref={smlFolderInputRef}
+              type="file"
+              multiple
+              onChange={(e) => setSmlFiles(e.target.files)}
+            />
+          </div>
+          {smlFiles && <p className="muted">{smlFiles.length} file(s) selected.</p>}
+          <button
+            className="primary"
+            disabled={!smlFiles || smlFiles.length === 0 || importSmlMutation.isPending}
+            onClick={() => importSmlMutation.mutate()}
+          >
+            {importSmlMutation.isPending ? "Importing…" : "Import"}
+          </button>
+          {importSmlMutation.isError && (
+            <p className="error">
+              {importSmlMutation.error instanceof ApiError
+                ? JSON.stringify(importSmlMutation.error.detail)
+                : String(importSmlMutation.error)}
+            </p>
+          )}
+          {importSmlMutation.data && (
+            <div className="stack">
+              <p>
+                Imported <Link to={`/models/${importSmlMutation.data.model.id}`}>{importSmlMutation.data.model.name}</Link>.
+              </p>
+              {importSmlMutation.data.warnings.map((w, i) => (
+                <p key={i} className="error">
+                  warning: {w}
+                </p>
+              ))}
+            </div>
           )}
         </div>
       )}

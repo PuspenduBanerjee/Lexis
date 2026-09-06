@@ -7,7 +7,7 @@ from pathlib import Path
 
 import click
 
-from lexis.dispatch import TARGETS
+from lexis.dispatch import TARGET_ALIASES, TARGETS
 from lexis.dispatch import transpile as dispatch_transpile
 from lexis.parser import load_ossie_document
 from lexis.resolved_model import ResolvedModel
@@ -22,7 +22,7 @@ def main() -> None:
 
 @main.command()
 @click.argument("model_path", type=click.Path(exists=True, dir_okay=False))
-@click.option("--target", type=click.Choice(TARGETS), required=True)
+@click.option("--target", type=click.Choice([*TARGETS, *TARGET_ALIASES]), required=True)
 @click.option("--metric", help="Metric name (required for SQL targets)")
 @click.option(
     "--group-by",
@@ -30,7 +30,12 @@ def main() -> None:
     metavar="DATASET.FIELD",
     help="Field to group by, e.g. item.i_category (SQL targets only, repeatable)",
 )
-@click.option("--out", type=click.Path(dir_okay=False), help="Write output to a file instead of stdout")
+@click.option(
+    "--out",
+    type=click.Path(),
+    help="Write output to a file (single-file targets) or a directory (multi-file "
+    "targets, e.g. sml) instead of stdout",
+)
 def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[str, ...], out: str | None) -> None:
     """Parse an Ossie model and emit it in the given TARGET format."""
     document = load_ossie_document(model_path)
@@ -45,11 +50,48 @@ def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[
     for warning in result.warnings:
         click.echo(f"warning: {warning}", err=True)
 
-    if out:
+    if isinstance(result.content, dict):
+        if out:
+            out_dir = Path(out)
+            for filename, content in result.content.items():
+                path = out_dir / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+            click.echo(f"Wrote {len(result.content)} file(s) to {out_dir}/", err=True)
+        else:
+            for filename, content in result.content.items():
+                click.echo(f"# --- {filename} ---")
+                click.echo(content)
+    elif out:
         Path(out).write_text(result.content)
         click.echo(f"Wrote {out}", err=True)
     else:
         click.echo(result.content)
+
+
+@main.group("import")
+def import_group() -> None:
+    """Import a third-party semantic model format into an Ossie document."""
+
+
+@import_group.command("sml")
+@click.argument("repo_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("--out", type=click.Path(), required=True, help="Path to write the resulting Ossie YAML document")
+def import_sml(repo_dir: str, out: str) -> None:
+    """Parse an SML repo directory (REPO_DIR) into an Ossie YAML document."""
+    from lexis.sml._common import ConversionError
+    from lexis.sml.parse import parse_sml_repo
+
+    try:
+        result = parse_sml_repo(repo_dir)
+    except ConversionError as exc:
+        raise click.UsageError(str(exc))
+
+    for warning in result.warnings:
+        click.echo(f"warning: {warning}", err=True)
+
+    Path(out).write_text(result.document.to_ossie_yaml())
+    click.echo(f"Wrote {out}", err=True)
 
 
 @main.command("export-demo-dataset")

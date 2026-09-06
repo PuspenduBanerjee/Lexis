@@ -122,7 +122,7 @@ uvicorn lexis_api.main:app --reload --port 8000
 
 Startup automatically seeds 3 demo users (`admin`, `editor1`, `viewer1` — ids 1/2/3,
 roles Admin/Editor/Viewer). There's no login screen yet: requests are attributed to a
-user via an `X-User-Id` header (defaults to `1`/admin if omitted) — a deliberate stub,
+user via an `X-Account-Id` header (defaults to `1`/admin if omitted) — a deliberate stub,
 see [docs/architecture-plan.md](docs/architecture-plan.md) for why and what a real
 auth swap-in looks like.
 
@@ -211,14 +211,14 @@ API server's filesystem) and `snowflake`.
 Any authenticated user can view/test/run against any connection (same
 workspace-wide visibility as models); creating, updating, or deleting one
 requires the Editor or Admin role, and only the connection's owner (or an Admin)
-can update/delete it. Requests are attributed via the `X-User-Id` header, same as
+can update/delete it. Requests are attributed via the `X-Account-Id` header, same as
 everywhere else in the API (see Quickstart: Web UI above).
 
 **Create a DuckDB-file connection:**
 
 ```bash
 curl -X POST http://localhost:8000/api/connections \
-  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -H "X-Account-Id: 2" -H "Content-Type: application/json" \
   -d '{
         "name": "local-warehouse",
         "type": "duckdb_file",
@@ -236,7 +236,7 @@ container (alongside the existing `lexis-data` volume in
 
 ```bash
 curl -X POST http://localhost:8000/api/connections \
-  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -H "X-Account-Id: 2" -H "Content-Type: application/json" \
   -d '{
         "name": "prod-snowflake",
         "type": "snowflake",
@@ -262,7 +262,7 @@ must be set wherever the API process runs, not passed in the request body.
 **Test connectivity** (opens a real connection, no query run):
 
 ```bash
-curl -X POST http://localhost:8000/api/connections/1/test -H "X-User-Id: 2"
+curl -X POST http://localhost:8000/api/connections/1/test -H "X-Account-Id: 2"
 # {"ok": true, "detail": "connected successfully"}
 ```
 
@@ -272,7 +272,7 @@ the create response above; same `/run` endpoint used for demo/upload, with
 
 ```bash
 curl -X POST http://localhost:8000/api/models/1/run \
-  -H "X-User-Id: 2" \
+  -H "X-Account-Id: 2" \
   -F "mode=connection" -F "connection_id=1" \
   -F "metric=total_sales" -F 'group_by_json=["item.i_category"]'
 ```
@@ -298,7 +298,19 @@ results back, Lexis can also serve a model as a **live** MCP server, one
 `query_<metric>` tool per metric, resolved against the demo dataset, a local DuckDB
 file, or Snowflake.
 
-**Local (stdio) — e.g. Claude Desktop or any MCP client that launches a subprocess:**
+There are three ways to wire a client up to it, depending on what you're doing:
+
+| # | Approach | Reaches localhost? | Needs public exposure? |
+|---|---|---|---|
+| 1 | **Local (stdio)** — the client spawns `lexis mcp-serve` itself | n/a (same process tree) | No |
+| 2 | **`mcp-remote` bridge** — the client spawns `mcp-remote`, which proxies to `lexis_api` over plain local HTTP | Yes, from the same machine | **No** |
+| 3 | **Public tunnel** (cloudflared/ngrok) — for Claude's own *remote connector* UI, which calls from Anthropic's cloud, not your laptop | No — genuinely public | **Yes** |
+
+Approaches 2 and 3 both talk to the same [remote HTTP endpoint](#the-remote-http-endpoint-approaches-2-and-3);
+approach 2 is the better choice whenever you just want to exercise that endpoint
+yourself, since it never leaves your machine.
+
+### Approach 1: local (stdio) — e.g. Claude Desktop or any MCP client that launches a subprocess
 
 ```bash
 pip install -e ".[mcp]"
@@ -328,13 +340,15 @@ dataset doesn't have (e.g. running `--demo` against a model with a `store` datas
 which isn't in the bundled demo data), that one tool call fails with the underlying
 DB error — other metrics keep working.
 
-**Remote (HTTP) — mounted on the API, bound to an existing saved Connection:**
+### The remote HTTP endpoint (approaches 2 and 3)
+
+Mounted on the API, bound to an existing saved Connection:
 
 ```text
 POST/GET/DELETE /api/models/{model_id}/mcp?connection_id=<id>
 ```
 
-Requires the same `X-User-Id` header as the rest of the API, and a `connection_id`
+Requires the same `X-Account-Id` header as the rest of the API, and a `connection_id`
 for a Connection you've already created (see above) — the endpoint has no demo/upload
 mode, since a remote MCP client can't provide a file per request. `connection_id` is
 **not** the model's id, and there's no connection until you create one — a fresh
@@ -346,7 +360,7 @@ demo data:
 lexis export-demo-dataset --out /tmp/tpcds-demo.duckdb --force
 
 curl -X POST http://localhost:8000/api/connections \
-  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -H "X-Account-Id: 2" -H "Content-Type: application/json" \
   -d '{"name":"demo","type":"duckdb_file","config":{"path":"/tmp/tpcds-demo.duckdb"}}'
 # -> note the "id" in the response, use it as connection_id below
 ```
@@ -356,7 +370,7 @@ URL; it speaks the standard MCP Streamable HTTP transport, e.g.:
 
 ```bash
 curl -X POST "http://localhost:8000/api/models/1/mcp?connection_id=<id-from-above>" \
-  -H "X-User-Id: 2" -H "Content-Type: application/json" \
+  -H "X-Account-Id: 2" -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize",
        "params":{"protocolVersion":"2025-06-18","capabilities":{},
@@ -365,6 +379,114 @@ curl -X POST "http://localhost:8000/api/models/1/mcp?connection_id=<id-from-abov
 
 Each tool call opens the connection fresh (same per-request cost model the `/run`
 endpoint already has) and returns the metric's real result rows, not just the schema.
+
+### Approach 2: `mcp-remote` as a local stdio bridge (no public exposure)
+
+When you add a **custom (remote) connector** in Claude Desktop's Settings → Connectors
+or claude.ai, Anthropic's cloud infrastructure — not your local Desktop app — is what
+actually opens the HTTP connection to the URL you give it. `localhost` from their
+servers' point of view means *their own server*, not your laptop, so that path
+genuinely requires a publicly reachable URL (approach 3, below).
+
+If you just want to exercise the remote HTTP endpoint above without any public
+exposure, [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) is a small local
+bridge: Claude spawns it as an ordinary local (stdio) subprocess — same mechanism as
+approach 1 — and *it* makes the HTTP call to `lexis_api` from your own machine, where
+`localhost` means exactly what you'd expect. No tunnel, no TLS, no public exposure:
+
+```json
+{
+  "mcpServers": {
+    "lexis-remote": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8000/api/models/1/mcp?connection_id=1",
+        "--allow-http",
+        "--header",
+        "X-Account-Id: 2"
+      ]
+    }
+  }
+}
+```
+
+`--allow-http` is required since the endpoint here is plain HTTP (`mcp-remote` refuses
+non-HTTPS URLs by default, for good reason on a real network — this one never leaves
+your machine). `--header` supplies the same `X-Account-Id` auth the API needs everywhere
+else. Verified working end-to-end: `initialize` → `notifications/initialized` →
+`tools/call query_total_sales` all round-trip correctly through the bridge.
+
+### Approach 3: exposing the endpoint over HTTPS (for Claude's own remote connector)
+
+If you specifically want to use Claude's built-in remote-connector UI (rather than
+`mcp-remote`), you do need a genuinely public HTTPS URL, for the reason above. For
+local development, the quickest way to get one is a tunnel that terminates TLS for you
+and forwards to your local port, with no cert management needed:
+
+```bash
+# install once (see cloudflare's docs for your OS if `brew`/`apt` aren't available)
+brew install cloudflared   # or: apt install cloudflared
+
+# with lexis_api already running on :8000 - logging to .dev/ alongside
+# scripts/dev.sh's own api.log/web.log, backgrounded so the shell stays free:
+nohup cloudflared tunnel --url http://localhost:8000 > .dev/cloudflared.log 2>&1 &
+sleep 5 && grep -o 'https://[a-zA-Z0-9.-]*trycloudflare\.com' .dev/cloudflared.log
+```
+
+That prints the random `https://<something>.trycloudflare.com` URL straight from the
+log. Your full connector URL is then:
+
+```text
+https://<something>.trycloudflare.com/api/models/<model_id>/mcp?connection_id=<connection_id>
+```
+
+`ngrok http 8000` is an equivalent alternative if you'd rather use that.
+
+**Before you expose it**: `X-Account-Id` is a development-only auth stub in this codebase
+(see `lexis_api/deps.py`) — anyone who reaches the tunnel URL can act as *any* user id
+just by setting that header themselves, no password or token required. Only run the
+tunnel while you're actively testing against your own machine, don't point it at a
+database with real data, and kill it (`pkill cloudflared`, since the command above
+backgrounds it) as soon as you're done — the hostname is random and will change on
+every restart anyway, so there's no persistent URL to protect.
+
+### Connecting Claude's remote connector to it (approach 3 only)
+
+1. Claude Desktop: `Ctrl+,` (or the top-left menu → File → Settings) → **Connectors**
+   in the sidebar → **Add custom connector**.
+2. Paste in the tunnel URL from above, including the `/api/models/<model_id>/mcp?connection_id=<connection_id>` path.
+3. Look for a **Request headers** section in that same dialog and add `X-Account-Id` →
+   your user id (e.g. `2`). Claude stores it as the connector's credential and sends it
+   on every request — this is what satisfies the endpoint's auth requirement.
+
+Request-header support for custom connectors is currently a **beta feature limited to
+some organizations** — if you don't see that section, the dialog will only offer OAuth,
+which this endpoint doesn't implement, and you won't be able to connect this
+particular remote endpoint from Claude's UI without a small proxy in front of it that
+injects the header for you. Approaches 1 and 2 above have no such limitation — neither
+goes through this connector-UI auth path at all, since both configure the header (or
+skip auth entirely) directly in `claude_desktop_config.json`.
+
+### Sample questions to ask
+
+Once connected (any of the three approaches), the model's `ai_context` synonyms let
+you ask in plain language instead of naming the metric exactly — try these against the
+bundled demo data:
+
+- "How's revenue breaking down by product category?"
+- "What's our customer lifetime value?"
+- "Break total sales down by brand."
+- "Show me sales by year."
+- "How productive are our stores?" (exercises `store_productivity`, a ratio metric)
+
+Two things worth knowing about the bundled `--demo` data specifically, so unexpected
+answers don't read as bugs: it's only 2 items/2 customers, so per-item attributes like
+brand and category are perfectly correlated (slicing by either gives the same split);
+and a handful of `store_sales` rows deliberately reference an item/customer id that
+doesn't exist, so an item- or customer-sliced metric will show a smaller total than one
+sliced by date alone — that's correct `INNER JOIN` behavior on intentionally
+incomplete sample data, not a data-completeness gap in the model.
 
 ## Running tests
 

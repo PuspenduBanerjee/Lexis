@@ -67,3 +67,12 @@ def test_snowflake_semantic_view_target(client_as, model_id):
     content = resp.json()["content"]
     assert content.startswith("CREATE OR REPLACE SEMANTIC VIEW")
     assert "TABLES (" in content
+
+
+def test_sml_target_returns_a_file_map(client_as, model_id):
+    resp = client_as("viewer").post(f"/api/models/{model_id}/transpile", json={"target": "sml"})
+    assert resp.status_code == 200
+    content = resp.json()["content"]
+    assert isinstance(content, dict)
+    assert "catalog.yml" in content
+    assert "datasets/store_sales.yml" in content

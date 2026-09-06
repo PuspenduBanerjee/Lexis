@@ -11,7 +11,7 @@ def editor_model_id(client_as, tpcds_yaml) -> int:
 
 
 def test_unknown_user_id_is_401(client):
-    resp = client.get("/api/users/me", headers={"X-User-Id": "999"})
+    resp = client.get("/api/users/me", headers={"X-Account-Id": "999"})
     assert resp.status_code == 401
 
 
@@ -61,7 +61,7 @@ def test_second_editor_cannot_edit_first_editors_model(client, client_as, editor
     finally:
         db.close()
 
-    client.headers.update({"X-User-Id": "4"})
+    client.headers.update({"X-Account-Id": "4"})
     resp = client.put(f"/api/models/{editor_model_id}", json={"yaml_text": tpcds_yaml})
     assert resp.status_code == 403
 

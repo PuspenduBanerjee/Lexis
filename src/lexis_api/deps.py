@@ -23,10 +23,10 @@ def find_user_or_401(db: Session, user_id: int) -> User:
 
 
 def get_current_user(
-    x_user_id: int | None = Header(default=None, alias="X-User-Id"),
+    x_account_id: int | None = Header(default=None, alias="X-Account-Id"),
     db: Session = Depends(get_db),
 ) -> User:
-    uid = x_user_id if x_user_id is not None else settings.default_user_id
+    uid = x_account_id if x_account_id is not None else settings.default_user_id
     return find_user_or_401(db, uid)
 
 

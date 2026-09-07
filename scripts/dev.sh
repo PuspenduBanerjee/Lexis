@@ -19,6 +19,11 @@ WEB_PORT="${LEXIS_WEB_PORT:-5173}"
 # server (see src/lexis_api/dev_proxy.py) - so one tunneled port (ngrok's free tier
 # allows only one) can expose both the API and the UI. Off by default.
 ENABLE_UI_PROXY="${LEXIS_DEV_UI_PROXY:-0}"
+# Caps each log file's size (rotate_log.py rotates one backup, then starts
+# fresh) - protects against a runaway subprocess filling the disk, e.g. a
+# tight retry loop each logging a full traceback.
+MAX_LOG_BYTES="${LEXIS_MAX_LOG_BYTES:-2097152}" # 2 MiB
+ROTATE_LOG="$(dirname "${BASH_SOURCE[0]}")/rotate_log.py"
 
 # Each process is launched via `setsid` so it becomes its own process-group leader -
 # that lets `stop` kill the whole group (npm's `run dev` and uvicorn's `--reload`
@@ -39,10 +44,13 @@ start_one() {
     echo "$name already running (pid $(cat "$pid_file"))"
     return
   fi
+  # `> >(rotate_log.py ...)` (process substitution) rather than a `| rotate_log.py`
+  # pipeline - a pipeline would make `$!` the rotator's PID instead of the real
+  # process's, breaking stop_one's process-group kill.
   if [[ "$HAVE_SETSID" == 1 ]]; then
-    setsid "$@" > "$log_file" 2>&1 < /dev/null &
+    setsid "$@" > >(python3 "$ROTATE_LOG" "$log_file" "$MAX_LOG_BYTES") 2>&1 < /dev/null &
   else
-    "$@" > "$log_file" 2>&1 < /dev/null &
+    "$@" > >(python3 "$ROTATE_LOG" "$log_file" "$MAX_LOG_BYTES") 2>&1 < /dev/null &
   fi
   echo $! > "$pid_file"
   echo "$name started (pid $(cat "$pid_file"), log: $log_file)"
@@ -129,7 +137,8 @@ case "${1:-}" in
     echo "Usage: $0 {start|stop|restart|status}" >&2
     echo "Env overrides: LEXIS_API_PORT (default 8000), LEXIS_WEB_PORT (default 5173)," >&2
     echo "               LEXIS_DEV_UI_PROXY=1 (default 0 - also proxy the UI through" >&2
-    echo "               the backend port, e.g. for a single-port tunnel)" >&2
+    echo "               the backend port, e.g. for a single-port tunnel)," >&2
+    echo "               LEXIS_MAX_LOG_BYTES (default 2097152 - per-log-file cap)" >&2
     exit 1
     ;;
 esac

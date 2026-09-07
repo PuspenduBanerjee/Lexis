@@ -49,13 +49,22 @@ def mount_dev_ui_proxy(app: FastAPI, target: str) -> None:
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
     async def _proxy_http(path: str, request: Request) -> Response:
-        upstream = await http_client.request(
-            request.method,
-            f"/{path}",
-            params=request.query_params,
-            headers=_filtered_headers(request.headers.items()),
-            content=await request.body(),
-        )
+        try:
+            upstream = await http_client.request(
+                request.method,
+                f"/{path}",
+                params=request.query_params,
+                headers=_filtered_headers(request.headers.items()),
+                content=await request.body(),
+            )
+        except httpx.HTTPError as exc:
+            # The Vite dev server being slow/unreachable is a normal, recurring
+            # condition (cold-compile, not started yet, ...) - a clean 502 with a
+            # one-line log entry beats an unhandled exception dumping a full
+            # traceback (and, under a client that retries aggressively, doing
+            # that every few seconds indefinitely - see git history for why this
+            # comment exists).
+            return Response(content=f"dev UI proxy: {exc}", status_code=502, media_type="text/plain")
         return Response(
             content=upstream.content,
             status_code=upstream.status_code,

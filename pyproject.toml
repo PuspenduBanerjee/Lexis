@@ -72,3 +72,9 @@ packages = ["src/lexis"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 norecursedirs = ["third_party", ".git", ".venv", "node_modules"]
+filterwarnings = [
+    # Starlette's own TestClient (as of 1.6.0, the latest release) imports a
+    # since-deprecated anyio alias internally - nothing on our side to fix,
+    # drop this once a starlette release removes the alias.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning:starlette.testclient",
+]

@@ -216,7 +216,10 @@ on PATH already, e.g. via the pyenv/venv `pip install -e ".[dev,api]"` above):
 ```
 
 Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `LEXIS_API_PORT`/
-`LEXIS_WEB_PORT` env vars.
+`LEXIS_WEB_PORT` env vars. The API writes one line per request to its log
+(`METHOD /path -> status`), including the `X-User-Email` / `X-User-Id` headers — if
+a tunnel's OAuth traffic policy injects them from the authenticated identity,
+they show up here; `-` otherwise.
 
 Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
 role, paste an Ossie YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to

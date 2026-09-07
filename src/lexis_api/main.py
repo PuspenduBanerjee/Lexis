@@ -1,5 +1,7 @@
-"""FastAPI app: CORS, exception handlers, router registration, startup seed."""
+"""FastAPI app: CORS, request logging, exception handlers, router registration, startup seed."""
 
+import logging
+import sys
 from contextlib import asynccontextmanager
 
 import duckdb
@@ -38,6 +40,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# One line per request into the app's stdout (captured to .dev/api.log by
+# scripts/dev.sh, or the container log under Docker). Includes the identity
+# headers ngrok's OAuth traffic policy injects upstream from the Google identity
+# (`X-User-Email` / `X-User-Id`) - "-" for direct/local requests that don't pass
+# through the tunnel. Own logger + handler so it works regardless of how the app
+# is launched (uvicorn CLI configures its own loggers but leaves the root bare).
+access_logger = logging.getLogger("lexis_api.access")
+if not access_logger.handlers:
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    access_logger.addHandler(_handler)
+    access_logger.setLevel(logging.INFO)
+
+
+@app.middleware("http")
+async def log_request_identity(request: Request, call_next):
+    response = await call_next(request)
+    access_logger.info(
+        "%s %s -> %d  X-User-Email=%s X-User-Id=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        request.headers.get("x-user-email", "-"),
+        request.headers.get("x-user-id", "-"),
+    )
+    return response
 
 
 @app.exception_handler(ValidationError)

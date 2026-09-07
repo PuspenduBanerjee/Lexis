@@ -97,16 +97,87 @@ lexis transpile tests/fixtures/tpcds_semantic_model.yaml --target snowflake_sema
 
 Add `--out <file>` to write to a file instead of stdout.
 
-The bundled TPC-DS-shaped demo dataset (the same data the web UI's "Demo dataset"
-run mode uses in-memory) can be exported to a real `.duckdb` file, handy as a seed
-file for the Upload run mode or a `duckdb_file` connection:
+A bundled demo dataset (the same data the web UI's "Demo dataset" run mode uses
+in-memory) can be exported to a real `.duckdb` file, handy as a seed file for the
+Upload run mode or a `duckdb_file` connection:
 
 ```bash
 pip install -e ".[mcp]"        # needs the optional duckdb dependency
-lexis export-demo-dataset --out demo.duckdb
+lexis export-demo-dataset --out demo.duckdb                       # small TPC-DS fixture (default)
+lexis export-demo-dataset --dataset retail --out retail.duckdb    # 10,000-fact retail analytics dataset
 ```
 
-Pass `--force` to overwrite an existing file at `--out`.
+Pass `--force` to overwrite an existing file at `--out`. See
+[The bundled demo datasets](#the-bundled-demo-datasets) below for what each one contains.
+
+## The bundled demo datasets
+
+Lexis ships two in-memory demo datasets so any model can be run for real without a
+warehouse. The web UI's and API's **"Demo dataset"** run mode picks whichever one
+matches the model's `source` catalog automatically; the CLI (`export-demo-dataset`)
+selects it with `--dataset`.
+
+| `--dataset` | Bundled model | Catalog | Size | Best for |
+|---|---|---|---|---|
+| `tpcds` *(default)* | `tpcds_retail_model` — [`tests/fixtures/tpcds_semantic_model.yaml`](tests/fixtures/tpcds_semantic_model.yaml) | `tpcds.public.*` | 7 `store_sales` rows, 2 items, 2 customers, 6 dates | small deterministic examples, emitter/JOIN behaviour |
+| `retail` | `retail_analytics` — [`src/lexis_api/sample_data/retail_analytics_model.yaml`](src/lexis_api/sample_data/retail_analytics_model.yaml) | `retail.public.*` | **10,000 sales facts** + 1,500 returns, 800 customers, 300 items, 25 stores, 40 promotions, 3 years of dates | realistic analytics — segmentation, seasonality, basket/AOV, promo lift, returns |
+
+### The `retail` dataset
+
+A multi-fact star schema: two fact tables sharing five conformed dimensions, all
+generated from a fixed seed ([`src/lexis/retail_demo_data.py`](src/lexis/retail_demo_data.py)),
+so every number is reproducible.
+
+| Table | Rows | Notable columns |
+|---|---|---|
+| `fct_store_sales` | 10,000 (one per sold line item; a basket shares `ss_ticket_number`) | `ss_ext_sales_price`, `ss_quantity`, `ss_net_paid`, `ss_ext_wholesale_cost`, `ss_ext_discount_amt` |
+| `fct_store_returns` | 1,500 | `sr_return_amt`, `sr_return_quantity`, `sr_net_loss`, `sr_reason` |
+| `dim_date` | 1,096 (2022-01-01 … 2024-12-31) | `d_date_sk` = `YYYYMMDD`, `d_year`, `d_quarter_name`, `d_month_name`, `d_is_weekend`, `d_holiday_name` |
+| `dim_customer` | 800 | `c_gender`, `c_age_band`, `c_income_band`, `c_education_status`, `c_loyalty_tier`, `c_preferred_channel`, `c_state` |
+| `dim_item` | 300 | `i_category` (10) → `i_class` (6 each) → `i_brand` (40), `i_manufacturer`, `i_color`, `i_size` |
+| `dim_store` | 25 | `s_store_type` (Flagship/Standard/Express/Outlet), `s_number_employees`, `s_floor_space`, `s_division_name` |
+| `dim_promotion` | 41 | `p_channel`, `p_discount_pct`; `p_promo_sk = 0` is the "No Promotion" member |
+
+Sales are deliberately skewed toward recent years, Q4, and weekends, so time-series
+and seasonality queries show a real shape. The `retail_analytics` model exposes 17
+metrics over it (`total_revenue`, `gross_margin_pct`, `units_sold`,
+`transaction_count`, `avg_basket_value`, `distinct_customers`, `discount_rate_pct`,
+`sales_per_employee`, `return_amount`, `net_loss_from_returns`, …). No single metric
+spans both fact tables — query sales and returns separately.
+
+**From the CLI:**
+
+```bash
+pip install -e ".[mcp]"        # needs the optional duckdb dependency
+
+# transpile one metric, grouped by a dimension attribute
+lexis transpile src/lexis_api/sample_data/retail_analytics_model.yaml \
+  --target duckdb --metric total_revenue --group-by dim_item.i_category
+
+# export the data to a real .duckdb file (reuse it in Upload mode or a duckdb_file connection)
+lexis export-demo-dataset --dataset retail --out retail-demo.duckdb
+
+# serve the retail model's 17 metrics as live MCP tools against this data
+lexis mcp-serve src/lexis_api/sample_data/retail_analytics_model.yaml --demo
+```
+
+**In the web UI:** `retail_analytics` is preloaded on first run. Open it → **Test
+Metrics** tab → keep **Demo dataset** mode → pick a metric (optionally "Group by" an
+item / store / customer / promotion / date attribute) and **Run**, or switch to
+**Time series** for a year → quarter → month → day drill-down on `dim_date.d_date`.
+The **Export demo dataset (.duckdb)** button downloads exactly this data.
+
+**Over the remote MCP endpoint:** the mounted `/mcp` endpoint has no demo mode, so
+register the exported file as a connection first, then point a client at the retail
+model's id:
+
+```bash
+lexis export-demo-dataset --dataset retail --out /tmp/retail-demo.duckdb --force
+curl -X POST http://localhost:8000/api/connections \
+  -H "X-Account-Id: 2" -H "Content-Type: application/json" \
+  -d '{"name":"retail-demo","type":"duckdb_file","config":{"path":"/tmp/retail-demo.duckdb"}}'
+# -> use the returned "id" as connection_id on /api/models/<retail-model-id>/mcp
+```
 
 ## Quickstart: Web UI
 
@@ -150,8 +221,10 @@ Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `LEXIS_API_PORT`
 Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
 role, paste an Ossie YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
 create a model, then use the **Browse** / **Design** / **Transpile** / **Test Metrics**
-tabs on the model's page (a sample model is preloaded automatically on first run, so
-there's already something to open). "Design" is a node-graph canvas (owner/admin only)
+tabs on the model's page (two sample models are preloaded automatically on first run,
+so there's already something to open: `tpcds_retail_model` on the small TPC-DS
+fixture, and `retail_analytics`, a larger multi-fact star schema backed by a
+10,000-fact generated demo dataset). "Design" is a node-graph canvas (owner/admin only)
 for visually adding/editing datasets, fields, and relationships — drag between the
 dots on a dataset box to draw a relationship. Metrics appear as their own node,
 connected by dashed edges to every dataset their expression references (a "Show
@@ -166,7 +239,8 @@ The canvas preserves anything it has no control for (`ai_context`, `custom_exten
 non-ANSI_SQL dialect expressions) by merging onto the existing
 parsed model rather than regenerating YAML from scratch; see
 `src/lexis_api/graph_edit.py`. "Test Metrics" executes the generated SQL for real,
-against a bundled TPC-DS demo dataset, an uploaded `.duckdb`/`.db` file, or a saved
+against the model's bundled demo dataset (TPC-DS or retail analytics, chosen from the
+model's source catalog), an uploaded `.duckdb`/`.db` file, or a saved
 connection (see "Connecting to Snowflake or an external DuckDB file" below) — pick
 "Time series" there for the full drill-down/roll-up view (with metric, time-field, and
 starting-grain pickers), or "Metric query" for the original metric+group-by mode. In
@@ -315,9 +389,15 @@ yourself, since it never leaves your machine.
 ```bash
 pip install -e ".[mcp]"
 lexis mcp-serve tests/fixtures/tpcds_semantic_model.yaml --demo
+# larger bundled dataset (10,000 facts, 17 metrics):
+#   lexis mcp-serve src/lexis_api/sample_data/retail_analytics_model.yaml --demo
 # or: --duckdb-file /path/to/warehouse.duckdb
 # or: --snowflake-account ... --snowflake-user ... --snowflake-password-env ...
 ```
+
+`--demo` serves the bundled dataset whose catalog matches the model
+(`tpcds.*` → the TPC-DS fixture, `retail.*` → the retail analytics dataset); see
+[The bundled demo datasets](#the-bundled-demo-datasets).
 
 Point a client's config at it, e.g. Claude Desktop's `claude_desktop_config.json`:
 
@@ -555,8 +635,9 @@ skip auth entirely) directly in `claude_desktop_config.json`.
 ### Sample questions to ask
 
 Once connected (any of the three approaches), the model's `ai_context` synonyms let
-you ask in plain language instead of naming the metric exactly — try these against the
-bundled demo data:
+you ask in plain language instead of naming the metric exactly.
+
+Against the **`tpcds`** model (`lexis mcp-serve tests/fixtures/tpcds_semantic_model.yaml --demo`):
 
 - "How's revenue breaking down by product category?"
 - "What's our customer lifetime value?"
@@ -564,13 +645,23 @@ bundled demo data:
 - "Show me sales by year."
 - "How productive are our stores?" (exercises `store_productivity`, a ratio metric)
 
-Two things worth knowing about the bundled `--demo` data specifically, so unexpected
-answers don't read as bugs: it's only 2 items/2 customers, so per-item attributes like
-brand and category are perfectly correlated (slicing by either gives the same split);
-and a handful of `store_sales` rows deliberately reference an item/customer id that
-doesn't exist, so an item- or customer-sliced metric will show a smaller total than one
-sliced by date alone — that's correct `INNER JOIN` behavior on intentionally
-incomplete sample data, not a data-completeness gap in the model.
+Against the **`retail`** model (`lexis mcp-serve src/lexis_api/sample_data/retail_analytics_model.yaml --demo`),
+which has enough data for the answers to be interesting:
+
+- "What's total revenue and gross margin percent by product category?"
+- "Show revenue by month — is there a Q4 bump?"
+- "Which store format has the highest revenue per employee?"
+- "Break average basket value down by customer loyalty tier."
+- "How much are we losing to returns, and what's the top return reason?"
+
+Two things worth knowing about the small **`tpcds`** `--demo` data specifically, so
+unexpected answers don't read as bugs: it's only 2 items/2 customers, so per-item
+attributes like brand and category are perfectly correlated (slicing by either gives
+the same split); and a handful of `store_sales` rows deliberately reference an
+item/customer id that doesn't exist, so an item- or customer-sliced metric will show a
+smaller total than one sliced by date alone — that's correct `INNER JOIN` behavior on
+intentionally incomplete sample data. The **`retail`** dataset has none of these
+quirks: every fact row's foreign keys resolve, and the dimensions are fully populated.
 
 ## Running tests
 
@@ -586,8 +677,11 @@ pytest
 
 ```text
 src/lexis/          core library: Ossie parsing, join-graph resolution, transpilers, CLI
+src/lexis/demo_data.py         small fixed TPC-DS demo dataset (in-memory / exported .duckdb)
+src/lexis/retail_demo_data.py  generated 10,000-fact retail analytics demo dataset
 src/lexis_api/      FastAPI backend (models, RBAC, transpile route, live query execution
                         against demo/upload DuckDB or a persisted connections.py connection)
+src/lexis_api/sample_data/     bundled models seeded on first boot (tpcds + retail_analytics)
 frontend/                Vite + React + TypeScript SPA
 tests/                  core library tests (fixtures under tests/fixtures/)
 tests/api/              backend API tests

@@ -9,7 +9,9 @@ from sqlalchemy.pool import StaticPool
 
 from lexis_api.db import Base
 from lexis_api.models import SemanticModelRecord, User
-from lexis_api.seed import seed_default_users, seed_sample_model
+from lexis_api.seed import seed_default_users, seed_sample_models
+
+_EXPECTED_MODEL_NAMES = {"tpcds_retail_model", "retail_analytics"}
 
 
 def _fresh_session():
@@ -18,42 +20,41 @@ def _fresh_session():
     return sessionmaker(bind=engine)()
 
 
-def test_seed_sample_model_creates_one_model_owned_by_editor():
+def test_seed_sample_models_creates_the_bundled_models_owned_by_editor():
     db = _fresh_session()
     seed_default_users(db)
-    seed_sample_model(db)
+    seed_sample_models(db)
 
     records = db.query(SemanticModelRecord).all()
-    assert len(records) == 1
-    assert records[0].name == "tpcds_retail_model"
-    assert records[0].owner.username == "editor1"
+    assert {r.name for r in records} == _EXPECTED_MODEL_NAMES
+    assert all(r.owner.username == "editor1" for r in records)
 
 
-def test_seed_sample_model_is_idempotent():
+def test_seed_sample_models_is_idempotent():
     db = _fresh_session()
     seed_default_users(db)
-    seed_sample_model(db)
-    seed_sample_model(db)
+    seed_sample_models(db)
+    seed_sample_models(db)
 
-    assert db.query(SemanticModelRecord).count() == 1
+    assert db.query(SemanticModelRecord).count() == len(_EXPECTED_MODEL_NAMES)
 
 
-def test_seed_sample_model_skips_if_models_already_exist():
+def test_seed_sample_models_skips_if_models_already_exist():
     db = _fresh_session()
     seed_default_users(db)
     db.add(SemanticModelRecord(name="pre-existing", owner_id=1, raw_yaml="version: '0.1.1'\nsemantic_model: []"))
     db.commit()
 
-    seed_sample_model(db)
+    seed_sample_models(db)
 
     assert db.query(SemanticModelRecord).count() == 1
     assert db.query(SemanticModelRecord).first().name == "pre-existing"
 
 
-def test_seed_default_users_still_idempotent_alongside_sample_model():
+def test_seed_default_users_still_idempotent_alongside_sample_models():
     db = _fresh_session()
     seed_default_users(db)
-    seed_sample_model(db)
+    seed_sample_models(db)
     seed_default_users(db)
 
     assert db.query(User).count() == 3

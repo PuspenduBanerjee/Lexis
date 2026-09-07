@@ -9,6 +9,11 @@ import { TimeSeriesPanel } from "./TimeSeriesPanel";
 type QueryType = "metric" | "timeseries";
 export type RunMode = "demo" | "upload" | "connection";
 
+/** The bundled demo dataset that backs a model, inferred from its source catalog. */
+function demoDatasetFor(model: ModelDetailOut): "tpcds" | "retail" {
+  return model.datasets[0]?.source.startsWith("retail.") ? "retail" : "tpcds";
+}
+
 export function DuckDbRunPanel({ model }: { model: ModelDetailOut }) {
   const [mode, setMode] = useState<RunMode>("demo");
   const [queryType, setQueryType] = useState<QueryType>("metric");
@@ -19,12 +24,14 @@ export function DuckDbRunPanel({ model }: { model: ModelDetailOut }) {
     queryFn: api.listConnections,
     enabled: mode === "connection",
   });
-  const exportMutation = useMutation({ mutationFn: api.exportDemoDataset });
+  const demoDataset = demoDatasetFor(model);
+  const exportMutation = useMutation({ mutationFn: () => api.exportDemoDataset(demoDataset) });
 
   return (
     <div className="stack">
       <p className="muted">
-        Executes the generated SQL for real, against a bundled TPC-DS demo dataset, an uploaded{" "}
+        Executes the generated SQL for real, against the bundled{" "}
+        {demoDataset === "retail" ? "retail analytics" : "TPC-DS"} demo dataset, an uploaded{" "}
         <code>.duckdb</code>/<code>.db</code> file, or a saved connection (see the{" "}
         <a href="/connections">Connections</a> page to manage those).
       </p>

@@ -96,20 +96,30 @@ def import_sml(repo_dir: str, out: str) -> None:
 
 @main.command("export-demo-dataset")
 @click.option("--out", type=click.Path(dir_okay=False), required=True, help="Path to write the .duckdb file")
+@click.option(
+    "--dataset",
+    type=click.Choice(["tpcds", "retail"]),
+    default="tpcds",
+    show_default=True,
+    help="Which bundled demo dataset to export: the small TPC-DS fixture, or the "
+    "larger retail analytics dataset (10,000 sales facts + returns)",
+)
 @click.option("--force", is_flag=True, help="Overwrite --out if it already exists")
-def export_demo_dataset_cmd(out: str, force: bool) -> None:
-    """Write the bundled TPC-DS-shaped demo dataset - the same data the web UI's
-    "Demo dataset" run mode uses - to a real .duckdb file, so it can be re-uploaded
-    (Run tab's Upload mode) or registered as a duckdb_file connection."""
+def export_demo_dataset_cmd(out: str, dataset: str, force: bool) -> None:
+    """Write a bundled demo dataset - the same data the web UI's "Demo dataset" run
+    mode uses - to a real .duckdb file, so it can be re-uploaded (Run tab's Upload
+    mode) or registered as a duckdb_file connection."""
     try:
         from lexis.demo_data import export_demo_dataset
+        from lexis.retail_demo_data import export_retail_demo_dataset
     except ImportError as exc:
         raise click.UsageError(
             'exporting the demo dataset requires duckdb - install with `pip install "lexis-cli[mcp]"`'
         ) from exc
 
+    exporter = export_retail_demo_dataset if dataset == "retail" else export_demo_dataset
     try:
-        export_demo_dataset(out, overwrite=force)
+        exporter(out, overwrite=force)
     except FileExistsError as exc:
         raise click.UsageError(f"{exc} (pass --force to overwrite)")
 
@@ -117,21 +127,25 @@ def export_demo_dataset_cmd(out: str, force: bool) -> None:
 
 
 @contextmanager
-def _demo_connection(model: ResolvedModel):  # noqa: ARG001 - model kept for signature symmetry with the other two connection helpers
+def _demo_connection(model: ResolvedModel):
     try:
         from lexis.demo_data import build_tpcds_demo_connection
+        from lexis.retail_demo_data import build_retail_demo_connection
     except ImportError as exc:
         raise click.UsageError(
             '--demo requires duckdb - install with `pip install "lexis-cli[mcp]"`'
         ) from exc
 
-    # Unlike the API's `/run` endpoint (which checks demo-compatibility per request,
-    # for just the one metric being queried - see `duckdb_run.check_demo_compatible`),
-    # we don't know which metric will be called until a tool call arrives, so we can't
-    # reject up front without also rejecting metrics that don't touch an unsupported
-    # table. Let an incompatible metric fail naturally with DuckDB's own "table/catalog
-    # not found" error when it's actually invoked.
-    con = build_tpcds_demo_connection()
+    # Pick the bundled demo whose fixture schema matches the model's `source`
+    # catalog. Unlike the API's `/run` endpoint (which checks demo-compatibility
+    # per request, for just the one metric being queried), we don't know which
+    # metric will be called until a tool call arrives, so we can't reject an
+    # individual incompatible metric up front - let it fail naturally with DuckDB's
+    # own "table/catalog not found" error when it's actually invoked.
+    catalogs = {ds.source.split(".", 1)[0] for ds in model.datasets.values()}
+    builder = build_retail_demo_connection if catalogs == {"retail"} else build_tpcds_demo_connection
+
+    con = builder()
     try:
         yield con
     finally:

@@ -122,3 +122,15 @@ class _MCPWorkspaceEndpoint:
 mcp_workspace_asgi_app = Starlette(
     routes=[Route("/", _MCPWorkspaceEndpoint(), methods=["GET", "POST", "DELETE"])]
 )
+
+# `Starlette.Mount`'s path regex always requires a literal "/" after the mount
+# prefix to match at all (see `Mount.__init__`: it compiles `path + "/{path:path}"`),
+# so a bare `/api/mcp` request (no trailing slash) never actually reaches the
+# `mcp_workspace_asgi_app` mount above - normally that just 307-redirects to
+# `/api/mcp/` via Starlette's own `redirect_slashes`, but when the dev-only UI
+# proxy's catch-all route is also registered (`mount_dev_ui_proxy`, see
+# `main.py`/`dev_proxy.py`) that catch-all matches the bare path first and
+# swallows it as a proxy request instead, breaking exact-path clients that don't
+# follow redirects. `main.py` registers this exact route directly (not via
+# `Mount`) so the bare form resolves the same way regardless of proxy state.
+mcp_workspace_bare_route = Route("/api/mcp", _MCPWorkspaceEndpoint(), methods=["GET", "POST", "DELETE"])

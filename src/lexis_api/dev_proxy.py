@@ -75,7 +75,25 @@ def mount_dev_ui_proxy(app: FastAPI, target: str) -> None:
     async def _proxy_websocket(websocket: WebSocket, path: str) -> None:
         await websocket.accept(subprotocol=websocket.headers.get("sec-websocket-protocol"))
         try:
-            async with websockets.connect(f"{ws_target}/{path}") as upstream:
+            # `ping_interval` off: the `websockets` client otherwise pings the
+            # upstream every 20s and closes the connection if it doesn't get a
+            # timely pong - Vite's HMR socket doesn't necessarily answer that the
+            # way this library expects, so left on this silently force-closes the
+            # upstream leg every ~20-40s. That drops the browser's HMR socket too,
+            # and Vite does a full page reload on every reconnect - the proxy
+            # should stay transparent and not impose its own liveness policy on
+            # a connection it didn't originate.
+            requested_protocol = websocket.headers.get("sec-websocket-protocol")
+            async with websockets.connect(
+                f"{ws_target}/{path}",
+                ping_interval=None,
+                # Vite's HMR endpoint checks for the "vite-hmr" subprotocol to
+                # recognize the connection as HMR traffic - omitting it (the
+                # earlier bug here) leaves Vite never completing its side of the
+                # handshake, so this call hangs until `open_timeout` (10s
+                # default) fires, silently killing the whole bridge.
+                subprotocols=[websockets.Subprotocol(requested_protocol)] if requested_protocol else None,
+            ) as upstream:
                 async with anyio.create_task_group() as tg:
 
                     async def from_client() -> None:

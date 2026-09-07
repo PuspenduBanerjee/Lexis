@@ -22,7 +22,10 @@ def main() -> None:
     max_bytes = int(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_MAX_BYTES
 
     handler = logging.handlers.RotatingFileHandler(path, maxBytes=max_bytes, backupCount=1)
-    handler.setFormatter(logging.Formatter("%(message)s"))
+    # Millisecond precision so a tight retry loop (many lines within the same
+    # second) is visibly distinguishable from ordinary, spaced-out activity like
+    # manual page reloads - that distinction is the whole reason this exists.
+    handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d %(message)s", datefmt="%H:%M:%S"))
     logger = logging.getLogger("rotate_log")
     logger.setLevel(logging.INFO)
     logger.addHandler(handler)

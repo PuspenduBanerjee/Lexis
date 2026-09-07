@@ -1,0 +1,1034 @@
+# yaml-language-server: $schema=../core-spec/ossie-schema.json
+
+# Retail Analytics Semantic Model
+#
+# A deliberately "complex" companion to tpcds_semantic_model.yaml: a multi-fact
+# star schema with two fact tables (store sales + store returns) sharing five
+# conformed dimensions (date, customer, item, store, promotion). Backed by the
+# generated demo dataset in `src/lexis/retail_demo_data.py` (10,000 sales facts,
+# ~1,500 return facts), so every metric here can be run live in "Demo dataset"
+# mode.
+#
+# NOTE: no metric references *both* fact tables - the SQL emitter builds a single
+# query rooted at the first referenced dataset and would fan-trap two facts across
+# a shared dimension. Sales metrics and returns metrics are kept separate.
+
+version: "0.2.0.dev0"
+
+semantic_model:
+  - name: retail_analytics
+    description: >-
+      Retail sales and returns analytics over a conformed-dimension star schema.
+      Supports revenue and margin analysis, basket/transaction metrics, customer
+      segmentation, product and store performance, promotion lift, seasonality,
+      and returns behaviour.
+    ai_context:
+      instructions: >-
+        Use this semantic model for omnichannel retail analytics. `fct_store_sales`
+        is at sales-line-item grain; multiple line items share `ss_ticket_number`
+        (a basket/transaction). `fct_store_returns` is a separate fact - do not
+        combine sales and returns metrics in one query. Group sales metrics by
+        item, store, customer, promotion, or date attributes. Dates are keyed by a
+        YYYYMMDD integer surrogate key (`*_date_sk`).
+
+    datasets:
+      # ---- Fact: store sales (line-item grain) --------------------------------
+      - name: fct_store_sales
+        source: retail.public.fct_store_sales
+        primary_key: [ss_ticket_number, ss_item_sk]
+        unique_keys:
+          - [ss_ticket_number, ss_item_sk]
+        description: Sales fact at one row per sold line item; baskets share ss_ticket_number.
+        ai_context:
+          synonyms:
+            - "sales"
+            - "sales transactions"
+            - "store purchases"
+            - "POS data"
+            - "line items"
+        fields:
+          - name: ss_sold_date_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_sold_date_sk
+            description: Foreign key to dim_date (YYYYMMDD)
+            dimension:
+              is_time: false
+          - name: ss_item_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_item_sk
+            description: Foreign key to dim_item
+            dimension:
+              is_time: false
+          - name: ss_customer_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_customer_sk
+            description: Foreign key to dim_customer
+            dimension:
+              is_time: false
+          - name: ss_store_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_store_sk
+            description: Foreign key to dim_store
+            dimension:
+              is_time: false
+          - name: ss_promo_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_promo_sk
+            description: Foreign key to dim_promotion (0 = no promotion)
+            dimension:
+              is_time: false
+          - name: ss_ticket_number
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_ticket_number
+            description: Basket / transaction identifier shared by a ticket's line items
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "basket"
+                - "transaction"
+                - "order number"
+          - name: ss_quantity
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_quantity
+            description: Units sold on the line
+            ai_context:
+              synonyms:
+                - "units"
+                - "quantity"
+          - name: ss_sales_price
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_sales_price
+            description: Per-unit selling price after promotion discount
+          - name: ss_list_price
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_list_price
+            description: Per-unit list price before discount
+          - name: ss_ext_sales_price
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_ext_sales_price
+            description: Extended selling price (quantity * sales price)
+            ai_context:
+              synonyms:
+                - "revenue"
+                - "line total"
+                - "extended price"
+          - name: ss_ext_discount_amt
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_ext_discount_amt
+            description: Extended discount amount vs list price
+          - name: ss_ext_wholesale_cost
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_ext_wholesale_cost
+            description: Extended wholesale (cost of goods) for the line
+          - name: ss_ext_tax
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_ext_tax
+            description: Sales tax charged on the line
+          - name: ss_coupon_amt
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_coupon_amt
+            description: Coupon amount applied to the line
+          - name: ss_net_paid
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_net_paid
+            description: Amount the customer actually paid (ext sales price minus coupon)
+          - name: ss_net_profit
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: ss_net_profit
+            description: Net profit on the line (net paid minus wholesale cost)
+            ai_context:
+              synonyms:
+                - "profit"
+                - "margin"
+
+      # ---- Fact: store returns ----------------------------------------------
+      - name: fct_store_returns
+        source: retail.public.fct_store_returns
+        primary_key: [sr_ticket_number, sr_item_sk]
+        unique_keys:
+          - [sr_ticket_number, sr_item_sk]
+        description: Returns fact at one row per returned line item.
+        ai_context:
+          synonyms:
+            - "returns"
+            - "refunds"
+            - "merchandise returns"
+        fields:
+          - name: sr_returned_date_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_returned_date_sk
+            description: Foreign key to dim_date for the return date
+            dimension:
+              is_time: false
+          - name: sr_item_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_item_sk
+            description: Foreign key to dim_item
+            dimension:
+              is_time: false
+          - name: sr_customer_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_customer_sk
+            description: Foreign key to dim_customer
+            dimension:
+              is_time: false
+          - name: sr_store_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_store_sk
+            description: Foreign key to dim_store
+            dimension:
+              is_time: false
+          - name: sr_ticket_number
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_ticket_number
+            description: Original sale's basket / transaction identifier
+            dimension:
+              is_time: false
+          - name: sr_return_quantity
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_return_quantity
+            description: Units returned
+          - name: sr_return_amt
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_return_amt
+            description: Refunded amount for the returned units
+            ai_context:
+              synonyms:
+                - "refund amount"
+                - "return value"
+          - name: sr_return_tax
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_return_tax
+            description: Tax refunded on the return
+          - name: sr_return_fee
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_return_fee
+            description: Restocking / handling fee retained on the return
+          - name: sr_net_loss
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_net_loss
+            description: Net loss to the business from the return
+          - name: sr_reason
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: sr_reason
+            description: Reason the customer gave for the return
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "return reason"
+                - "refund reason"
+
+      # ---- Dimension: date -------------------------------------------------
+      - name: dim_date
+        source: retail.public.dim_date
+        primary_key: [d_date_sk]
+        unique_keys:
+          - [d_date_sk]
+        description: Calendar date dimension, one row per day 2022-2024.
+        ai_context:
+          synonyms:
+            - "calendar"
+            - "dates"
+            - "time"
+        fields:
+          - name: d_date_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_date_sk
+            description: YYYYMMDD surrogate key
+            dimension:
+              is_time: false
+          - name: d_date
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_date
+            description: Calendar date
+            dimension:
+              is_time: true
+            ai_context:
+              synonyms:
+                - "date"
+                - "day"
+          - name: d_year
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_year
+            description: Calendar year
+            dimension:
+              is_time: true
+            ai_context:
+              synonyms:
+                - "year"
+          - name: d_quarter_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_quarter_name
+            description: Quarter label, e.g. 2024Q1
+            dimension:
+              is_time: true
+            ai_context:
+              synonyms:
+                - "quarter"
+          - name: d_month_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_month_name
+            description: Month name
+            dimension:
+              is_time: true
+            ai_context:
+              synonyms:
+                - "month"
+          - name: d_day_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_day_name
+            description: Day of week name
+            dimension:
+              is_time: true
+          - name: d_is_weekend
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_is_weekend
+            description: Whether the day falls on a weekend
+            dimension:
+              is_time: false
+          - name: d_holiday_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: d_holiday_name
+            description: Holiday name if the day is a holiday, else null
+            dimension:
+              is_time: false
+
+      # ---- Dimension: customer ------------------------------------------------
+      - name: dim_customer
+        source: retail.public.dim_customer
+        primary_key: [c_customer_sk]
+        unique_keys:
+          - [c_customer_sk]
+        description: Customer dimension with demographic and loyalty attributes.
+        ai_context:
+          synonyms:
+            - "customers"
+            - "shoppers"
+            - "buyers"
+        fields:
+          - name: c_customer_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_customer_sk
+            description: Surrogate key for customer
+            dimension:
+              is_time: false
+          - name: c_customer_id
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_customer_id
+            description: Business key for customer
+            dimension:
+              is_time: false
+          - name: customer_full_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_first_name || ' ' || c_last_name
+            description: Customer full name (computed)
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "customer name"
+                - "full name"
+          - name: c_email
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_email
+            description: Customer email address
+            dimension:
+              is_time: false
+          - name: c_gender
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_gender
+            description: Customer gender
+            dimension:
+              is_time: false
+          - name: c_marital_status
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_marital_status
+            description: Customer marital status
+            dimension:
+              is_time: false
+          - name: c_age_band
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_age_band
+            description: Customer age band
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "age group"
+                - "age bracket"
+          - name: c_education_status
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_education_status
+            description: Highest education level
+            dimension:
+              is_time: false
+          - name: c_income_band
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_income_band
+            description: Household income band
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "income bracket"
+          - name: c_loyalty_tier
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_loyalty_tier
+            description: Loyalty program tier (Bronze/Silver/Gold/Platinum)
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "loyalty level"
+                - "membership tier"
+          - name: c_preferred_channel
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_preferred_channel
+            description: Customer's preferred shopping channel
+            dimension:
+              is_time: false
+          - name: c_state
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_state
+            description: Customer state / province
+            dimension:
+              is_time: false
+          - name: c_city
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: c_city
+            description: Customer city
+            dimension:
+              is_time: false
+
+      # ---- Dimension: item -------------------------------------------------
+      - name: dim_item
+        source: retail.public.dim_item
+        primary_key: [i_item_sk]
+        unique_keys:
+          - [i_item_sk]
+        description: Product dimension with category / class / brand hierarchy.
+        ai_context:
+          synonyms:
+            - "products"
+            - "items"
+            - "merchandise"
+            - "SKUs"
+        fields:
+          - name: i_item_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_item_sk
+            description: Surrogate key for item
+            dimension:
+              is_time: false
+          - name: i_item_id
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_item_id
+            description: Business key for item
+            dimension:
+              is_time: false
+          - name: i_product_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_product_name
+            description: Product name
+            dimension:
+              is_time: false
+          - name: i_category
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_category
+            description: Top-level product category
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "category"
+                - "department"
+          - name: i_class
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_class
+            description: Product class within category
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "subcategory"
+                - "product class"
+          - name: i_brand
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_brand
+            description: Brand name
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "brand"
+          - name: i_manufacturer
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_manufacturer
+            description: Manufacturer
+            dimension:
+              is_time: false
+          - name: i_color
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_color
+            description: Product color
+            dimension:
+              is_time: false
+          - name: i_size
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_size
+            description: Product size
+            dimension:
+              is_time: false
+          - name: i_current_price
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_current_price
+            description: Current catalog price
+            dimension:
+              is_time: false
+          - name: i_wholesale_cost
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: i_wholesale_cost
+            description: Wholesale cost per unit
+            dimension:
+              is_time: false
+
+      # ---- Dimension: store -------------------------------------------------
+      - name: dim_store
+        source: retail.public.dim_store
+        primary_key: [s_store_sk]
+        unique_keys:
+          - [s_store_id]
+        description: Store dimension with location, format, and staffing attributes.
+        ai_context:
+          synonyms:
+            - "stores"
+            - "locations"
+            - "branches"
+        fields:
+          - name: s_store_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_store_sk
+            description: Surrogate key for store
+            dimension:
+              is_time: false
+          - name: s_store_id
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_store_id
+            description: Business key for store
+            dimension:
+              is_time: false
+          - name: s_store_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_store_name
+            description: Store name
+            dimension:
+              is_time: false
+          - name: s_store_type
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_store_type
+            description: Store format (Flagship/Standard/Express/Outlet)
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "store format"
+                - "store type"
+          - name: s_division_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_division_name
+            description: Operating division / region
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "region"
+                - "division"
+          - name: s_market_manager
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_market_manager
+            description: Market manager responsible for the store
+            dimension:
+              is_time: false
+          - name: s_city
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_city
+            description: Store city
+            dimension:
+              is_time: false
+          - name: s_state
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_state
+            description: Store state / province
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "state"
+          - name: s_number_employees
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_number_employees
+            description: Headcount at the store
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "employees"
+                - "headcount"
+          - name: s_floor_space
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: s_floor_space
+            description: Selling floor area in square feet
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "square footage"
+                - "floor area"
+
+      # ---- Dimension: promotion --------------------------------------------
+      - name: dim_promotion
+        source: retail.public.dim_promotion
+        primary_key: [p_promo_sk]
+        unique_keys:
+          - [p_promo_sk]
+        description: Promotion dimension; p_promo_sk = 0 is the "No Promotion" member.
+        ai_context:
+          synonyms:
+            - "promotions"
+            - "campaigns"
+            - "offers"
+        fields:
+          - name: p_promo_sk
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: p_promo_sk
+            description: Surrogate key for promotion (0 = none)
+            dimension:
+              is_time: false
+          - name: p_promo_id
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: p_promo_id
+            description: Business key for promotion
+            dimension:
+              is_time: false
+          - name: p_promo_name
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: p_promo_name
+            description: Promotion name
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "campaign name"
+          - name: p_channel
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: p_channel
+            description: Marketing channel the promotion ran on
+            dimension:
+              is_time: false
+            ai_context:
+              synonyms:
+                - "marketing channel"
+          - name: p_discount_pct
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: p_discount_pct
+            description: Fractional discount offered by the promotion
+            dimension:
+              is_time: false
+          - name: p_cost
+            expression:
+              dialects:
+                - dialect: ANSI_SQL
+                  expression: p_cost
+            description: Cost to run the promotion
+            dimension:
+              is_time: false
+
+    relationships:
+      - name: store_sales_to_date
+        from: fct_store_sales
+        to: dim_date
+        from_columns: [ss_sold_date_sk]
+        to_columns: [d_date_sk]
+      - name: store_sales_to_customer
+        from: fct_store_sales
+        to: dim_customer
+        from_columns: [ss_customer_sk]
+        to_columns: [c_customer_sk]
+      - name: store_sales_to_item
+        from: fct_store_sales
+        to: dim_item
+        from_columns: [ss_item_sk]
+        to_columns: [i_item_sk]
+      - name: store_sales_to_store
+        from: fct_store_sales
+        to: dim_store
+        from_columns: [ss_store_sk]
+        to_columns: [s_store_sk]
+      - name: store_sales_to_promotion
+        from: fct_store_sales
+        to: dim_promotion
+        from_columns: [ss_promo_sk]
+        to_columns: [p_promo_sk]
+      - name: store_returns_to_date
+        from: fct_store_returns
+        to: dim_date
+        from_columns: [sr_returned_date_sk]
+        to_columns: [d_date_sk]
+      - name: store_returns_to_customer
+        from: fct_store_returns
+        to: dim_customer
+        from_columns: [sr_customer_sk]
+        to_columns: [c_customer_sk]
+      - name: store_returns_to_item
+        from: fct_store_returns
+        to: dim_item
+        from_columns: [sr_item_sk]
+        to_columns: [i_item_sk]
+      - name: store_returns_to_store
+        from: fct_store_returns
+        to: dim_store
+        from_columns: [sr_store_sk]
+        to_columns: [s_store_sk]
+
+    metrics:
+      # ---- Sales metrics --------------------------------------------------
+      - name: total_revenue
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_sales.ss_ext_sales_price)
+        description: Total extended sales revenue
+        ai_context:
+          synonyms:
+            - "revenue"
+            - "gross sales"
+            - "total sales"
+      - name: gross_profit
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_sales.ss_net_paid - fct_store_sales.ss_ext_wholesale_cost)
+        description: Net paid less wholesale cost of goods
+        ai_context:
+          synonyms:
+            - "profit"
+            - "margin dollars"
+      - name: gross_margin_pct
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                100.0 * SUM(fct_store_sales.ss_net_paid - fct_store_sales.ss_ext_wholesale_cost)
+                / NULLIF(SUM(fct_store_sales.ss_ext_sales_price), 0)
+        description: Gross profit as a percent of revenue
+        ai_context:
+          synonyms:
+            - "margin percent"
+            - "gross margin"
+      - name: units_sold
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_sales.ss_quantity)
+        description: Total units sold
+        ai_context:
+          synonyms:
+            - "quantity sold"
+            - "unit volume"
+      - name: transaction_count
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: COUNT(DISTINCT fct_store_sales.ss_ticket_number)
+        description: Number of distinct sales transactions (baskets)
+        ai_context:
+          synonyms:
+            - "transactions"
+            - "baskets"
+            - "order count"
+      - name: avg_selling_price
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                SUM(fct_store_sales.ss_ext_sales_price)
+                / NULLIF(SUM(fct_store_sales.ss_quantity), 0)
+        description: Revenue-weighted average selling price per unit
+        ai_context:
+          synonyms:
+            - "ASP"
+            - "average price"
+      - name: avg_basket_value
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                SUM(fct_store_sales.ss_ext_sales_price)
+                / NULLIF(COUNT(DISTINCT fct_store_sales.ss_ticket_number), 0)
+        description: Average revenue per transaction
+        ai_context:
+          synonyms:
+            - "average order value"
+            - "AOV"
+            - "basket size"
+      - name: distinct_customers
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: COUNT(DISTINCT fct_store_sales.ss_customer_sk)
+        description: Number of distinct purchasing customers
+        ai_context:
+          synonyms:
+            - "unique customers"
+            - "buyers"
+      - name: total_discount
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_sales.ss_ext_discount_amt)
+        description: Total discount given versus list price
+        ai_context:
+          synonyms:
+            - "markdown"
+            - "discount dollars"
+      - name: discount_rate_pct
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                100.0 * SUM(fct_store_sales.ss_ext_discount_amt)
+                / NULLIF(SUM(fct_store_sales.ss_ext_discount_amt + fct_store_sales.ss_ext_sales_price), 0)
+        description: Discount as a percent of gross (list) sales
+        ai_context:
+          synonyms:
+            - "markdown rate"
+            - "discount percent"
+      - name: sales_per_employee
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                SUM(fct_store_sales.ss_ext_sales_price)
+                / NULLIF(SUM(dim_store.s_number_employees), 0)
+        description: Revenue per store employee (group by a store attribute)
+        ai_context:
+          synonyms:
+            - "revenue per employee"
+            - "employee productivity"
+      - name: revenue_per_sqft
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                SUM(fct_store_sales.ss_ext_sales_price)
+                / NULLIF(SUM(dim_store.s_floor_space), 0)
+        description: Revenue per square foot of selling floor (group by a store attribute)
+        ai_context:
+          synonyms:
+            - "sales per square foot"
+            - "space productivity"
+
+      # ---- Returns metrics ---------------------------------------------------
+      - name: return_amount
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_returns.sr_return_amt)
+        description: Total refunded amount
+        ai_context:
+          synonyms:
+            - "refunds"
+            - "returned dollars"
+      - name: returned_units
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_returns.sr_return_quantity)
+        description: Total units returned
+        ai_context:
+          synonyms:
+            - "units returned"
+      - name: return_transaction_count
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: COUNT(DISTINCT fct_store_returns.sr_ticket_number)
+        description: Number of distinct transactions with a return
+        ai_context:
+          synonyms:
+            - "return transactions"
+      - name: avg_return_value
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                SUM(fct_store_returns.sr_return_amt)
+                / NULLIF(COUNT(DISTINCT fct_store_returns.sr_ticket_number), 0)
+        description: Average refunded amount per return transaction
+        ai_context:
+          synonyms:
+            - "average refund"
+      - name: net_loss_from_returns
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: SUM(fct_store_returns.sr_net_loss)
+        description: Total net loss attributable to returns
+        ai_context:
+          synonyms:
+            - "returns loss"
+            - "shrink from returns"
+
+    custom_extensions:
+      - vendor_name: DBT
+        data: '{"project_name": "retail_analytics", "models_path": "models/semantic"}'

@@ -1,5 +1,7 @@
-"""FastAPI app: CORS, exception handlers, router registration, startup seed."""
+"""FastAPI app: CORS, request logging, exception handlers, router registration, startup seed."""
 
+import logging
+import sys
 from contextlib import asynccontextmanager
 
 import duckdb
@@ -12,9 +14,10 @@ from pydantic import ValidationError
 
 from lexis_api.config import settings
 from lexis_api.db import Base, SessionLocal, engine
+from lexis_api.dev_proxy import mount_dev_ui_proxy
 from lexis_api.routers import connections, duckdb_run, graph, models, transpile, users
-from lexis_api.routers.mcp import mcp_asgi_app
-from lexis_api.seed import seed_default_users, seed_sample_model
+from lexis_api.routers.mcp import mcp_asgi_app, mcp_workspace_asgi_app, mcp_workspace_bare_route
+from lexis_api.seed import seed_default_users, seed_sample_models
 
 
 @asynccontextmanager
@@ -23,7 +26,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_default_users(db)
-        seed_sample_model(db)
+        seed_sample_models(db)
     finally:
         db.close()
     yield
@@ -37,6 +40,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# One line per request into the app's stdout (captured to .dev/api.log by
+# scripts/dev.sh, or the container log under Docker). Includes the identity
+# headers ngrok's OAuth traffic policy injects upstream from the Google identity
+# (`X-User-Email` / `X-User-Id`) - "-" for direct/local requests that don't pass
+# through the tunnel. Own logger + handler so it works regardless of how the app
+# is launched (uvicorn CLI configures its own loggers but leaves the root bare).
+access_logger = logging.getLogger("lexis_api.access")
+if not access_logger.handlers:
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    access_logger.addHandler(_handler)
+    access_logger.setLevel(logging.INFO)
+
+
+@app.middleware("http")
+async def log_request_identity(request: Request, call_next):
+    response = await call_next(request)
+    access_logger.info(
+        "%s %s -> %d  X-User-Email=%s X-User-Id=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        request.headers.get("x-user-email", "-"),
+        request.headers.get("x-user-id", "-"),
+    )
+    return response
 
 
 @app.exception_handler(ValidationError)
@@ -89,5 +119,14 @@ app.include_router(connections.router)
 # Mounted (not `include_router`'d) after every other `/api/models/...` route, so
 # Starlette's first-match-wins routing always tries those more specific routes
 # before falling through to this prefix mount - see `routers/mcp.py` for why the
-# live MCP endpoint needs a raw ASGI mount instead of a normal FastAPI route.
+# live MCP endpoints need a raw ASGI mount instead of a normal FastAPI route.
 app.mount("/api/models", mcp_asgi_app)
+# See `mcp_workspace_bare_route`'s comment (routers/mcp.py) - covers the exact
+# `/api/mcp` path (no trailing slash), which the `Mount` below never matches.
+app.router.routes.append(mcp_workspace_bare_route)
+app.mount("/api/mcp", mcp_workspace_asgi_app)
+
+# Dev-only, off by default - see dev_proxy.py. Registered last so it never
+# shadows a real `/api/...` route/mount above.
+if settings.dev_ui_proxy_target:
+    mount_dev_ui_proxy(app, settings.dev_ui_proxy_target)

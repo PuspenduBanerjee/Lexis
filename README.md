@@ -465,7 +465,63 @@ log. Your full connector URL is then:
 https://<something>.trycloudflare.com/api/models/<model_id>/mcp?connection_id=<connection_id>
 ```
 
-`ngrok http 8000` is an equivalent alternative if you'd rather use that.
+**ngrok** is an equivalent alternative if you'd rather use that:
+
+```bash
+ngrok http 8000
+```
+
+This gives a random `https://<random>.ngrok-free.app` URL, same trade-off as
+`cloudflared`'s quick tunnel above — it changes every restart, so the connector URL
+needs re-entering each time (and since Claude's custom connectors have no edit
+option, that means delete-and-recreate, not just editing a field).
+
+ngrok's free tier includes **one static/reserved domain per account**, which avoids
+that entirely - the URL stays the same across restarts:
+
+1. Claim it once: ngrok dashboard → Universal Edge → Domains → **+ New Domain**
+   (gives you something like `engaging-expose-annex.ngrok-free.dev`).
+2. Bind it directly with `--domain` - no config file needed for a single stable tunnel:
+
+   ```bash
+   ngrok http --domain=engaging-expose-annex.ngrok-free.dev 8000
+   ```
+
+   Or, for a named, reusable config (`ngrok start <name>`), add it under `endpoints`/
+   `tunnels` in `~/.config/ngrok/ngrok.yml` with that domain + port, then
+   `ngrok start <name>`.
+3. Your connector URL is now fixed:
+   `https://engaging-expose-annex.ngrok-free.dev/api/models/<model_id>/mcp?connection_id=<connection_id>`
+   (or `/api/mcp` for the [workspace-wide endpoint](#a-workspace-wide-alternative-switch-modelsconnections-without-reconnecting) —
+   never needs updating either way, since the domain doesn't change).
+
+One gotcha specific to a *named* tunnel: ngrok only allows one running agent per
+static domain at a time, across every machine on your account - if you get
+`ERR_NGROK_334` ("endpoint is already online"), an earlier session (a different
+terminal, a different device) still has it claimed; stop that one first, or check
+the ngrok dashboard's Agents/Endpoints page to disconnect it remotely. [ngrok's
+static domains blog post](https://ngrok.com/blog/free-static-domains-ngrok-users)
+
+#### Tunneling the UI too, on the same port
+
+ngrok's (and most tunnel providers') free tier gives you exactly one exposed
+port/endpoint. If you also want to share the running web UI - not just the MCP
+endpoint - through that same single tunnel, `lexis_api` can proxy its own port to
+the Vite dev server, so one `uvicorn` port serves both:
+
+```bash
+LEXIS_DEV_UI_PROXY_TARGET=http://localhost:5173 uvicorn lexis_api.main:app --port 8000
+```
+
+With that env var set, `:8000` serves `/api/...` as usual and forwards everything
+else (including Vite's HMR WebSocket) to the dev server - so `ngrok http 8000` (or
+the cloudflared tunnel above) now exposes the whole app, not just the API. It's
+off unless that env var is set, and it's dev-only by design - production
+(`docker-compose`) already has this same job done by `nginx` instead
+(`docker/nginx.conf`), which this proxy doesn't replace or touch. This also
+sidesteps Vite's own `Host`-header check (the "Blocked request... add to
+`server.allowedHosts`" error) automatically, since the proxy always presents
+itself to Vite as `localhost:5173` regardless of the tunnel's public hostname.
 
 **Before you expose it**: `X-Account-Id` is a development-only auth stub in this codebase
 (see `lexis_api/deps.py`) — anyone who reaches the tunnel URL can act as *any* user id

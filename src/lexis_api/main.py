@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from lexis_api.config import settings
 from lexis_api.db import Base, SessionLocal, engine
+from lexis_api.dev_proxy import mount_dev_ui_proxy
 from lexis_api.routers import connections, duckdb_run, graph, models, transpile, users
 from lexis_api.routers.mcp import mcp_asgi_app, mcp_workspace_asgi_app
 from lexis_api.seed import seed_default_users, seed_sample_model
@@ -92,3 +93,8 @@ app.include_router(connections.router)
 # live MCP endpoints need a raw ASGI mount instead of a normal FastAPI route.
 app.mount("/api/models", mcp_asgi_app)
 app.mount("/api/mcp", mcp_workspace_asgi_app)
+
+# Dev-only, off by default - see dev_proxy.py. Registered last so it never
+# shadows a real `/api/...` route/mount above.
+if settings.dev_ui_proxy_target:
+    mount_dev_ui_proxy(app, settings.dev_ui_proxy_target)

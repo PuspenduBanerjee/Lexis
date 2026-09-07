@@ -15,6 +15,10 @@ API_LOG="$RUN_DIR/api.log"
 WEB_LOG="$RUN_DIR/web.log"
 API_PORT="${LEXIS_API_PORT:-8000}"
 WEB_PORT="${LEXIS_WEB_PORT:-5173}"
+# When truthy, the backend also proxies everything outside /api/* to the Vite dev
+# server (see src/lexis_api/dev_proxy.py) - so one tunneled port (ngrok's free tier
+# allows only one) can expose both the API and the UI. Off by default.
+ENABLE_UI_PROXY="${LEXIS_DEV_UI_PROXY:-0}"
 
 # Each process is launched via `setsid` so it becomes its own process-group leader -
 # that lets `stop` kill the whole group (npm's `run dev` and uvicorn's `--reload`
@@ -80,13 +84,24 @@ start() {
   echo "Running migrations..."
   alembic upgrade head
 
+  # `start_one` execs its command directly (no shell), so a `VAR=val cmd` prefix
+  # wouldn't be parsed as an env assignment - export it in this shell instead,
+  # which `setsid "$@"`'s child process inherits normally.
+  if [[ "$ENABLE_UI_PROXY" == 1 || "$ENABLE_UI_PROXY" == true ]]; then
+    export LEXIS_DEV_UI_PROXY_TARGET="http://localhost:$WEB_PORT"
+  fi
+
   start_one "Backend" "$API_PID_FILE" "$API_LOG" \
     uvicorn lexis_api.main:app --reload --port "$API_PORT"
   start_one "Frontend" "$WEB_PID_FILE" "$WEB_LOG" \
     npm --prefix frontend run dev -- --port "$WEB_PORT"
 
   echo
-  echo "Backend:  http://localhost:$API_PORT  (log: $API_LOG)"
+  if [[ -n "${LEXIS_DEV_UI_PROXY_TARGET:-}" ]]; then
+    echo "Backend:  http://localhost:$API_PORT  (log: $API_LOG) - also serving the UI"
+  else
+    echo "Backend:  http://localhost:$API_PORT  (log: $API_LOG)"
+  fi
   echo "Frontend: http://localhost:$WEB_PORT  (log: $WEB_LOG)"
   echo "Tail logs with: tail -f $API_LOG $WEB_LOG"
 }
@@ -112,7 +127,9 @@ case "${1:-}" in
   status) status ;;
   *)
     echo "Usage: $0 {start|stop|restart|status}" >&2
-    echo "Env overrides: LEXIS_API_PORT (default 8000), LEXIS_WEB_PORT (default 5173)" >&2
+    echo "Env overrides: LEXIS_API_PORT (default 8000), LEXIS_WEB_PORT (default 5173)," >&2
+    echo "               LEXIS_DEV_UI_PROXY=1 (default 0 - also proxy the UI through" >&2
+    echo "               the backend port, e.g. for a single-port tunnel)" >&2
     exit 1
     ;;
 esac

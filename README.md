@@ -510,10 +510,14 @@ endpoint - through that same single tunnel, `lexis_api` can proxy its own port t
 the Vite dev server, so one `uvicorn` port serves both:
 
 ```bash
+# via scripts/dev.sh (derives the target from LEXIS_WEB_PORT automatically):
+LEXIS_DEV_UI_PROXY=1 ./scripts/dev.sh start
+
+# or standalone:
 LEXIS_DEV_UI_PROXY_TARGET=http://localhost:5173 uvicorn lexis_api.main:app --port 8000
 ```
 
-With that env var set, `:8000` serves `/api/...` as usual and forwards everything
+With that set, `:8000` serves `/api/...` as usual and forwards everything
 else (including Vite's HMR WebSocket) to the dev server - so `ngrok http 8000` (or
 the cloudflared tunnel above) now exposes the whole app, not just the API. It's
 off unless that env var is set, and it's dev-only by design - production

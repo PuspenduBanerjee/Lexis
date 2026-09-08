@@ -1,0 +1,18 @@
+# Demo overlay for docker-compose.yml. Layer it on top:
+#
+#   podman compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+#
+# It turns on LEXIS_DEV_SETUP_DEMO, so on startup the API writes the bundled demo
+# datasets to real .duckdb files and registers a `duckdb_file` connection for each
+# ("tpcds-demo", "retail-demo"). The MCP endpoint and the Run tab then work with
+# no manual `curl`. The connection rows live in the SQLite DB on the lexis-data
+# volume; pointing LEXIS_DEMO_DATA_DIR at /data/demo (also on that volume) keeps
+# the .duckdb files across restarts instead of regenerating them each boot.
+#
+# Do not use this overlay for a real deployment - it seeds demo data on every boot.
+services:
+  api:
+    environment:
+      LEXIS_DEV_SETUP_DEMO: "1"
+      LEXIS_DEMO_DATA_DIR: /data/demo

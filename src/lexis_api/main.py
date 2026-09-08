@@ -17,7 +17,7 @@ from lexis_api.db import Base, SessionLocal, engine
 from lexis_api.dev_proxy import mount_dev_ui_proxy
 from lexis_api.routers import connections, duckdb_run, graph, health, models, transpile, users
 from lexis_api.routers.mcp import mcp_asgi_app, mcp_workspace_asgi_app, mcp_workspace_bare_route
-from lexis_api.seed import seed_default_users, seed_sample_models
+from lexis_api.seed import seed_default_users, seed_demo_connections, seed_sample_models
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
     try:
         seed_default_users(db)
         seed_sample_models(db)
+        seed_demo_connections(db)
     finally:
         db.close()
     yield

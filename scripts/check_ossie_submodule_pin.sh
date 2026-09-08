@@ -45,8 +45,20 @@ fi
 MAX_ATTEMPTS=3
 RETRY_DELAY_SECONDS=10
 
+# `git branch -r --contains` needs full ancestry against every upstream branch.
+# CI's submodule checkout can leave this repo shallow and/or with a fetch refspec
+# narrowed to just the pinned SHA (actions/checkout), so fetch all heads and
+# unshallow before checking. `--unshallow` errors on an already-complete clone
+# (the pre-commit hook's case) - that's the `|| true`.
+fetch_all_upstream() {
+  git -C "$SUBMODULE_DIR" fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*'
+  if [[ "$(git -C "$SUBMODULE_DIR" rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+    git -C "$SUBMODULE_DIR" fetch --quiet --unshallow origin '+refs/heads/*:refs/remotes/origin/*' 2>/dev/null || true
+  fi
+}
+
 for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-  git -C "$SUBMODULE_DIR" fetch --quiet origin
+  fetch_all_upstream
 
   if git -C "$SUBMODULE_DIR" branch -r --contains "$PINNED_SHA" 2>/dev/null | grep -q .; then
     echo "OK: $SUBMODULE_DIR is pinned to $PINNED_SHA, reachable from upstream origin"

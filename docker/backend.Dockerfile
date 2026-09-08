@@ -50,5 +50,12 @@ RUN useradd --system --create-home --uid 1000 app \
 VOLUME /data
 USER app
 
+# OCI metadata (CI overrides description/created/revision via docker/metadata-action;
+# this is the fallback for local `scripts/docker-build.sh` builds).
+LABEL org.opencontainers.image.title="lexis-api" \
+      org.opencontainers.image.description="Lexis API - FastAPI backend and MCP endpoint for Ossie semantic models" \
+      org.opencontainers.image.source="https://github.com/PuspenduBanerjee/Lexis" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 EXPOSE 8000
 ENTRYPOINT ["backend-entrypoint.sh"]

@@ -24,4 +24,11 @@ RUN printf 'resolver 127.0.0.11 valid=10s ipv6=off;\n' > /etc/nginx/lexis-resolv
 COPY docker/nginx-resolver.sh /docker-entrypoint.d/20-lexis-resolver.sh
 RUN chmod +x /docker-entrypoint.d/20-lexis-resolver.sh
 
+# OCI metadata (CI overrides description/created/revision via docker/metadata-action;
+# this is the fallback for local `scripts/docker-build.sh` builds).
+LABEL org.opencontainers.image.title="lexis-web" \
+      org.opencontainers.image.description="Lexis web UI - React SPA served by nginx, proxying /api to the Lexis API" \
+      org.opencontainers.image.source="https://github.com/PuspenduBanerjee/Lexis" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 EXPOSE 8080

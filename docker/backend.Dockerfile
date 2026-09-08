@@ -1,10 +1,13 @@
 # Build context is the repo root (see docker-compose.yml / scripts/docker-build.sh) -
 # so this can COPY src/, pyproject.toml, and alembic.ini in one shot.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
-COPY pyproject.toml LICENSE NOTICE alembic.ini ./
+# README.md is required at build time: pyproject.toml's `readme = "README.md"` makes
+# hatchling read it while generating package metadata for the `pip install -e` below,
+# and it errors out ("Readme file does not exist") if the file is missing.
+COPY pyproject.toml README.md LICENSE NOTICE alembic.ini ./
 COPY src ./src
 
 # Editable install: the wheel's `packages` config only lists src/lexis (the

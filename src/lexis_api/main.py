@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from lexis_api.config import settings
 from lexis_api.db import Base, SessionLocal, engine
 from lexis_api.dev_proxy import mount_dev_ui_proxy
-from lexis_api.routers import connections, duckdb_run, graph, models, transpile, users
+from lexis_api.routers import connections, duckdb_run, graph, health, models, transpile, users
 from lexis_api.routers.mcp import mcp_asgi_app, mcp_workspace_asgi_app, mcp_workspace_bare_route
 from lexis_api.seed import seed_default_users, seed_sample_models
 
@@ -108,6 +108,7 @@ def handle_snowflake_error(request: Request, exc: snowflake.connector.errors.Err
     )
 
 
+app.include_router(health.router)
 app.include_router(models.router)
 app.include_router(transpile.router)
 app.include_router(duckdb_run.router)

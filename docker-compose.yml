@@ -12,8 +12,14 @@ services:
     expose:
       - "8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/users/me')"]
-      interval: 10s
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
+      # Fast probes during startup (Engine 25.0+): failures inside start_period
+      # don't count against `retries`, and the first success flips the container
+      # to `healthy` and switches to the slower `interval` below. Keeps `web`
+      # (depends_on: condition: service_healthy) from waiting a full `interval`.
+      start_period: 40s
+      start_interval: 5s
+      interval: 60s
       timeout: 5s
       retries: 5
 

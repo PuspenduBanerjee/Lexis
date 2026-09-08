@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Build context is the repo root (see docker-compose.yml / scripts/docker-build.sh) -
 # so this can COPY src/, pyproject.toml, and alembic.ini in one shot.
 FROM docker.io/python:3.14-slim
@@ -14,13 +15,23 @@ WORKDIR /app
 # hatchling read it while generating package metadata for the `pip install -e` below,
 # and it errors out ("Readme file does not exist") if the file is missing.
 COPY pyproject.toml README.md LICENSE NOTICE alembic.ini ./
-COPY src ./src
+
+# Copy only the hatchling package (src/lexis) before installing: dependency
+# resolution needs it, but edits to src/lexis_api (the API code, where most churn
+# is) then don't invalidate this layer. The pip cache mount persists downloaded
+# wheels across builds, so even a pyproject.toml change reinstalls without
+# re-downloading from PyPI. (Drop `--no-cache-dir` - the cache mount is not a
+# layer, so it doesn't bloat the image.)
+COPY src/lexis ./src/lexis
 
 # Editable install: the wheel's `packages` config only lists src/lexis (the
 # published PyPI package should stay CLI/library-only), but a source install of
 # this image needs lexis_api too - editable mode adds the whole src/ tree to the
-# path regardless of that restriction, since /app/src stays present at runtime.
-RUN pip install --no-cache-dir -e ".[api]"
+# path regardless of that restriction, since /app/src stays present at runtime
+# (the full COPY below).
+RUN --mount=type=cache,target=/root/.cache/pip pip install -e ".[api]"
+
+COPY src ./src
 
 COPY docker/backend-entrypoint.sh /usr/local/bin/backend-entrypoint.sh
 COPY docker/healthcheck.py /usr/local/bin/lexis-healthcheck.py

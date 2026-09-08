@@ -24,8 +24,10 @@ jobs:
         include:
           - image: lexis-api
             dockerfile: docker/backend.Dockerfile
+            description: "Lexis API - FastAPI backend and MCP endpoint for Ossie semantic models"
           - image: lexis-web
             dockerfile: docker/frontend.Dockerfile
+            description: "Lexis web UI - React SPA served by nginx, proxying /api to the Lexis API"
     steps:
       - name: Verify the tag sits on main
         if: startsWith(github.ref, 'refs/tags/')
@@ -83,6 +85,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ steps.reg.outputs.images }}
+          # `org.opencontainers.image.description` is what GHCR/Docker Hub show as
+          # the package description; without it GHCR nags. Set per-image here
+          # (metadata-action's auto value is the shared repo description).
+          labels: |
+            org.opencontainers.image.description=${{ matrix.description }}
+          annotations: |
+            org.opencontainers.image.description=${{ matrix.description }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -98,6 +107,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           provenance: false
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,scope=${{ matrix.image }},mode=max

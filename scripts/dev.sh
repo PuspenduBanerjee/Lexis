@@ -19,6 +19,13 @@ WEB_PORT="${LEXIS_WEB_PORT:-5173}"
 # server (see src/lexis_api/dev_proxy.py) - so one tunneled port (ngrok's free tier
 # allows only one) can expose both the API and the UI. Off by default.
 ENABLE_UI_PROXY="${LEXIS_DEV_UI_PROXY:-0}"
+# When truthy, the backend's startup seed writes the bundled demo datasets to
+# .duckdb files under LEXIS_DEMO_DATA_DIR (default /tmp) and creates a
+# `duckdb_file` connection for each ("tpcds-demo", "retail-demo") - so the MCP
+# endpoint / Run tab work with no manual setup, and they self-heal after a reboot
+# clears /tmp. Handled entirely in lexis_api (see seed.seed_demo_connections);
+# this script just passes the vars through to uvicorn. Off by default.
+SETUP_DEMO="${LEXIS_DEV_SETUP_DEMO:-0}"
 # Caps each log file's size (rotate_log.py rotates one backup, then starts
 # fresh) - protects against a runaway subprocess filling the disk, e.g. a
 # tight retry loop each logging a full traceback.
@@ -93,10 +100,17 @@ start() {
   alembic upgrade head
 
   # `start_one` execs its command directly (no shell), so a `VAR=val cmd` prefix
-  # wouldn't be parsed as an env assignment - export it in this shell instead,
-  # which `setsid "$@"`'s child process inherits normally.
+  # wouldn't be parsed as an env assignment - export in this shell instead, which
+  # `setsid "$@"`'s child (uvicorn) inherits normally.
   if [[ "$ENABLE_UI_PROXY" == 1 || "$ENABLE_UI_PROXY" == true ]]; then
     export LEXIS_DEV_UI_PROXY_TARGET="http://localhost:$WEB_PORT"
+  fi
+  if [[ "$SETUP_DEMO" == 1 || "$SETUP_DEMO" == true ]]; then
+    export LEXIS_DEV_SETUP_DEMO=1
+    if [[ -n "${LEXIS_DEMO_DATA_DIR:-}" ]]; then
+      export LEXIS_DEMO_DATA_DIR
+    fi
+    echo "Demo setup on: backend will write demo datasets + connections on startup"
   fi
 
   start_one "Backend" "$API_PID_FILE" "$API_LOG" \
@@ -138,7 +152,10 @@ case "${1:-}" in
     echo "Env overrides: LEXIS_API_PORT (default 8000), LEXIS_WEB_PORT (default 5173)," >&2
     echo "               LEXIS_DEV_UI_PROXY=1 (default 0 - also proxy the UI through" >&2
     echo "               the backend port, e.g. for a single-port tunnel)," >&2
-    echo "               LEXIS_MAX_LOG_BYTES (default 2097152 - per-log-file cap)" >&2
+    echo "               LEXIS_MAX_LOG_BYTES (default 2097152 - per-log-file cap)," >&2
+    echo "               LEXIS_DEV_SETUP_DEMO=1 (default 0 - backend writes demo" >&2
+    echo "               datasets + duckdb_file connections on startup)," >&2
+    echo "               LEXIS_DEMO_DATA_DIR (default /tmp - where those .duckdb files go)" >&2
     exit 1
     ;;
 esac

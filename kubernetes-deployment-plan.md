@@ -25,7 +25,7 @@ for future multi-replica / real-cluster use.
 | Persistent state | One volume: SQLite at `/data/lexis.db` (`LEXIS_DATABASE_URL=sqlite:////data/lexis.db`). `/tmp` scratch for `.duckdb` uploads (≤ `LEXIS_MAX_DUCKDB_UPLOAD_MB`, default 50). |
 | Migrations | `docker/backend-entrypoint.sh` runs `alembic upgrade head` then `exec uvicorn ...` on every start. |
 | Startup seeding | `main.py` lifespan seeds 3 demo users + 2 sample models. |
-| Config (env, prefix `LEXIS_`) | `LEXIS_DATABASE_URL`, `LEXIS_CORS_ORIGINS` (JSON list string), `LEXIS_DEFAULT_USER_ID`, `LEXIS_MAX_DUCKDB_UPLOAD_MB`, `LEXIS_UPLOAD_TMP_DIR`, `LEXIS_MAX_RESULT_ROWS`. `src/lexis_api/config.py`. |
+| Config (env, prefix `LEXIS_`) | `LEXIS_DATABASE_URL`, `LEXIS_CORS_ORIGINS` (JSON list string), `LEXIS_DEFAULT_USER_ID`, `LEXIS_MAX_DUCKDB_UPLOAD_MB`, `LEXIS_UPLOAD_TMP_DIR`, `LEXIS_MAX_RESULT_ROWS`. `src/lexis_api/config.py`. Dev-only: `LEXIS_DEV_SETUP_DEMO` / `LEXIS_DEMO_DATA_DIR` (startup writes demo `.duckdb` files + `duckdb_file` connections) — leave **unset** in the chart. |
 | Secrets | Only Snowflake passwords, read from an env var **named** by each connection's `password_env` (`connection_runtime.py`). None required unless a Snowflake connection is used. |
 | Health | `GET /api/health` — unauthenticated, no DB touch. Good for liveness **and** readiness. nginx has no health location — probe `/`. |
 | Security (compose) | api: `no-new-privileges`, `cap_drop: ALL`, uid 1000. web: `cap_drop: ALL` + `cap_add: CHOWN,SETUID,SETGID,DAC_OVERRIDE` (nginx master starts as root), `no-new-privileges`. |

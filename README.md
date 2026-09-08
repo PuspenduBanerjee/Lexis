@@ -215,6 +215,18 @@ on PATH already, e.g. via the pyenv/venv `pip install -e ".[dev,api]"` above):
 ./scripts/dev.sh restart
 ```
 
+Set `LEXIS_DEV_SETUP_DEMO=1` (env var, honoured by the backend however it's
+launched) to skip the manual `curl` above: on startup the API writes the bundled
+demo datasets to `tpcds-demo.duckdb` / `retail-demo.duckdb` in the system temp dir
+(`/tmp` on Linux) and registers a `duckdb_file` connection for each (`tpcds-demo`,
+`retail-demo`), so the MCP endpoint and Run tab work immediately. Both steps are
+idempotent and self-heal after a reboot clears the temp dir. Relocate the files
+with `LEXIS_DEMO_DATA_DIR`. Leave the flag off in production.
+
+`./scripts/demo-dev.sh <start|stop|restart|status>` is a wrapper that runs
+`dev.sh` with `LEXIS_DEV_SETUP_DEMO=1` and `LEXIS_DEV_UI_PROXY=1` (single-port:
+the backend also serves the UI) preset — one command for a demo/tunnel setup.
+
 Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `LEXIS_API_PORT`/
 `LEXIS_WEB_PORT` env vars. The API writes one line per request to its log
 (`METHOD /path -> status`), including the `X-User-Email` / `X-User-Id` headers — if

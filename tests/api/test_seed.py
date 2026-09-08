@@ -3,15 +3,18 @@ fixtures' DB from conftest.py), since those intentionally start with zero models
 other tests rely on that to assert exact model counts after their own creates.
 """
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from lexis_api import seed as seed_module
 from lexis_api.db import Base
-from lexis_api.models import SemanticModelRecord, User
-from lexis_api.seed import seed_default_users, seed_sample_models
+from lexis_api.models import Connection, ConnectionType, SemanticModelRecord, User
+from lexis_api.seed import seed_default_users, seed_demo_connections, seed_sample_models
 
 _EXPECTED_MODEL_NAMES = {"tpcds_retail_model", "retail_analytics"}
+_DEMO_CONNECTION_NAMES = {"tpcds-demo", "retail-demo"}
 
 
 def _fresh_session():
@@ -58,3 +61,65 @@ def test_seed_default_users_still_idempotent_alongside_sample_models():
     seed_default_users(db)
 
     assert db.query(User).count() == 3
+
+
+@pytest.fixture()
+def demo_setup(monkeypatch, tmp_path):
+    """Turn LEXIS_DEV_SETUP_DEMO on and point demo_data_dir at a scratch dir."""
+    monkeypatch.setattr(seed_module.settings, "dev_setup_demo", True)
+    monkeypatch.setattr(seed_module.settings, "demo_data_dir", str(tmp_path))
+    return tmp_path
+
+
+def test_seed_demo_connections_is_a_noop_when_the_flag_is_off(tmp_path, monkeypatch):
+    monkeypatch.setattr(seed_module.settings, "dev_setup_demo", False)
+    monkeypatch.setattr(seed_module.settings, "demo_data_dir", str(tmp_path))
+    db = _fresh_session()
+    seed_default_users(db)
+
+    seed_demo_connections(db)
+
+    assert db.query(Connection).count() == 0
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_seed_demo_connections_writes_datasets_and_connections(demo_setup):
+    db = _fresh_session()
+    seed_default_users(db)
+
+    seed_demo_connections(db)
+
+    conns = db.query(Connection).all()
+    assert {c.name for c in conns} == _DEMO_CONNECTION_NAMES
+    for c in conns:
+        assert c.type is ConnectionType.DUCKDB_FILE
+        assert c.owner.username == "editor1"
+        path = demo_setup / f"{c.name}.duckdb"
+        assert c.config == {"path": str(path)}
+        assert path.is_file() and path.stat().st_size > 0
+
+
+def test_seed_demo_connections_is_idempotent(demo_setup):
+    db = _fresh_session()
+    seed_default_users(db)
+
+    seed_demo_connections(db)
+    mtimes = {p.name: p.stat().st_mtime_ns for p in demo_setup.iterdir()}
+    seed_demo_connections(db)
+
+    assert db.query(Connection).count() == len(_DEMO_CONNECTION_NAMES)
+    # existing files are left untouched on the second run
+    assert {p.name: p.stat().st_mtime_ns for p in demo_setup.iterdir()} == mtimes
+
+
+def test_seed_demo_connections_reexports_a_missing_file(demo_setup):
+    db = _fresh_session()
+    seed_default_users(db)
+    seed_demo_connections(db)
+
+    (demo_setup / "retail-demo.duckdb").unlink()
+    seed_demo_connections(db)
+
+    assert (demo_setup / "retail-demo.duckdb").is_file()
+    # the connection row was not duplicated
+    assert db.query(Connection).filter_by(name="retail-demo").count() == 1

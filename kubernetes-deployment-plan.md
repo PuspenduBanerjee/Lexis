@@ -43,7 +43,7 @@ for future multi-replica / real-cluster use.
 
 - **Supported kinds:** `Pod`, `Deployment`, `PersistentVolumeClaim`, `ConfigMap`, `Secret`, `Service` (basic ClusterIP DNS via aardvark-dns), `Job`, `initContainers`, `securityContext`, `resources.limits`, `livenessProbe`/`readinessProbe` (httpGet/exec).
 - **Not supported:** `Ingress`, `HorizontalPodAutoscaler`, `StatefulSet` (partial/varies), storage classes / dynamic provisioning (PVC → a plain podman named volume).
-- **Cross-pod DNS:** a `Service` named `api` is resolvable from the `web` pod on the network `kube play` creates — this keeps nginx's hardcoded `proxy_pass http://api:8000` working **unchanged**. If DNS proves flaky on the target Podman version, fall back to a **single Pod** with both containers (then nginx must target `127.0.0.1:8000` — see optional nginx change below).
+- **Cross-pod DNS:** a `Service` named `api` is resolvable from the `web` pod on the network `kube play` creates. nginx now re-resolves `api` at runtime (`resolver` from `/etc/resolv.conf` + variable `proxy_pass`, added in `docker/nginx.conf` + `docker/nginx-resolver.sh`), so a restarted/rescheduled api pod with a new IP is picked up without restarting `web`. For a **single Pod** with both containers, the `api` name still resolves to the shared pod IP, so no nginx change is needed there either.
 - **Port exposure:** no LoadBalancer/NodePort. Expose `web` with `hostPort` on the container port (or `podman kube play --publish 8080:8080`). Chart value `web.hostPort`.
 - **`no-new-privileges`:** express as `securityContext.allowPrivilegeEscalation: false` (honored by Podman) rather than the compose `security_opt`.
 
@@ -123,7 +123,7 @@ snowflake:
 
 - **`scripts/docker-build.sh`** — add optional tag/push: honor `REGISTRY` env; when set, tag `${REGISTRY}/lexis-{api,web}:${TAG}` and `${CONTAINER_ENGINE} push`. Or add a sibling `scripts/publish-images.sh`. (Test: shellcheck + a dry-run guard.)
 - **`docker/backend-entrypoint.sh`** *(only if `migrations.mode=initContainer` is wanted)* — gate the migrate line behind `${LEXIS_RUN_MIGRATIONS:-1}` so the initContainer owns migrations and the app container skips them. Default unchanged. Add a test in `tests/` covering the env-var branch (bash test or a small pytest invoking the script).
-- **`docker/nginx.conf` → `docker/nginx.conf.template`** *(optional, only needed for the single-Pod fallback)* — replace `proxy_pass http://api:8000/api/;` with `proxy_pass ${LEXIS_API_UPSTREAM}/api/;`, put the file in `/etc/nginx/templates/` (the `nginx:alpine` image runs `envsubst` on that dir at boot), set `ENV LEXIS_API_UPSTREAM=http://api:8000` in `docker/frontend.Dockerfile`. Keeps the Service-DNS default and enables `http://localhost:8000` for one-Pod mode.
+- **`docker/nginx.conf` + `docker/nginx-resolver.sh`** *(done on the branch)* — nginx re-resolves the `api` upstream at runtime: a `resolver` line generated from the container's `/etc/resolv.conf` by `/docker-entrypoint.d/20-lexis-resolver.sh`, plus a variable in `proxy_pass`. Engine-agnostic (Docker embedded DNS / Podman aardvark-dns). No `LEXIS_API_UPSTREAM` / template needed; if you ever want to point `web` at a non-`api` host, add an `ENV`-driven `set $lexis_api_upstream` instead.
 - **`pyproject.toml`** *(for the documented Postgres path)* — add `pg = ["psycopg[binary]>=3.2"]` under `[project.optional-dependencies]`; the api image installs `".[api]"` — either fold pg in or build a `lexis-api-pg` variant. Document; do **not** enable by default.
 
 ### 3. Runner + docs

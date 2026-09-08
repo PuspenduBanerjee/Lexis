@@ -273,13 +273,31 @@ dev proxy uses, just in production).
 docker compose up -d --build
 ```
 
-Open `http://localhost:8080`. The SQLite database lives on a named volume
-(`lexis-data`, mounted at `/data` in the API container), so it survives
+Open `http://localhost:8000` (the `web` container publishes nginx's port 8080 on
+host `8000` - see `docker-compose.yml`). The SQLite database lives on a named
+volume (`lexis-data`, mounted at `/data` in the API container), so it survives
 `docker compose down`/`up` and container restarts - only `docker compose down -v`
 removes it. Override `LEXIS_CORS_ORIGINS`/`LEXIS_MAX_DUCKDB_UPLOAD_MB`/etc.
 (see `src/lexis_api/config.py`) via `environment:` in `docker-compose.yml` if
-needed; if you raise the upload cap, also raise nginx's `client_max_body_size` in
-`docker/nginx.conf` to match.
+needed - `LEXIS_CORS_ORIGINS` must list the origin you open in the browser, so
+change it too if you remap the published port; if you raise the upload cap, also
+raise nginx's `client_max_body_size` in `docker/nginx.conf` to match.
+
+nginx re-resolves the `api` service at runtime (a `resolver` generated from the
+container's DNS config at start, see `docker/nginx-resolver.sh`), so recreating
+just the API container - `compose up -d --force-recreate api`, which gives it a
+new IP - no longer 502s the frontend until `web` is restarted too.
+
+**Demo data + connections:** layer `docker-compose.demo.yml` on top to set
+`LEXIS_DEV_SETUP_DEMO=1` — the API then writes the bundled demo datasets and
+registers a `duckdb_file` connection for each (`tpcds-demo`, `retail-demo`) on
+startup, so the MCP endpoint / Run tab work with no manual `curl`. The `.duckdb`
+files go to `/data/demo` on the `lexis-data` volume (kept across restarts).
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+# docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+```
 
 To build the images without compose (e.g. for pushing to a registry):
 

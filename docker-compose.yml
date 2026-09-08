@@ -6,7 +6,7 @@ services:
     image: lexis-api:latest
     environment:
       # pydantic-settings parses list-typed env vars as JSON.
-      LEXIS_CORS_ORIGINS: '["http://localhost:8080"]'
+      LEXIS_CORS_ORIGINS: '["http://localhost:8000"]'
     volumes:
       - lexis-data:/data
     expose:
@@ -21,13 +21,16 @@ services:
       # Script file, not an inline `python -c "..."` - Podman flattens a multi-word
       # exec-form healthcheck and breaks the -c script (see docker/healthcheck.py).
       test: ["CMD", "python", "/usr/local/bin/lexis-healthcheck.py"]
-      # Fast probes during startup (Engine 25.0+): failures inside start_period
-      # don't count against `retries`, and the first success flips the container
-      # to `healthy` and switches to the slower `interval` below. Keeps `web`
-      # (depends_on: condition: service_healthy) from waiting a full `interval`.
-      start_period: 40s
+      # `interval` is kept low because Podman ignores `start_interval` (Docker
+      # Engine 25.0+'s fast-startup-probe key): under Podman the first probe only
+      # fires once a full `interval` has elapsed, so a 60s interval makes `web`
+      # (depends_on: condition: service_healthy) wait ~a minute. At 10s the first
+      # probe - and the flip to `healthy` - lands within ~10-20s on both engines.
+      # `start_period` is honoured by both (failures inside it don't count against
+      # `retries`); `start_interval` stays for Docker's benefit, a no-op on Podman.
+      start_period: 60s
       start_interval: 5s
-      interval: 60s
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -37,7 +40,7 @@ services:
       dockerfile: docker/frontend.Dockerfile
     image: lexis-web:latest
     ports:
-      - "8080:8080"
+      - "8000:8080"
     depends_on:
       api:
         condition: service_healthy

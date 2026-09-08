@@ -17,4 +17,11 @@ RUN apk upgrade --no-cache
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Runtime DNS re-resolution for the `api` upstream (see docker/nginx.conf):
+# a build-time default so `include` always resolves, plus an entrypoint script
+# that rewrites it from the container's /etc/resolv.conf before nginx starts.
+RUN printf 'resolver 127.0.0.11 valid=10s ipv6=off;\n' > /etc/nginx/lexis-resolver.conf
+COPY docker/nginx-resolver.sh /docker-entrypoint.d/20-lexis-resolver.sh
+RUN chmod +x /docker-entrypoint.d/20-lexis-resolver.sh
+
 EXPOSE 8080

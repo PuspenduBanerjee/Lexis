@@ -159,6 +159,10 @@ snowflake:
 6. **Postgres path (spot check, not shipped on)**
    - `helm template ... --set postgres.enabled=true --set migrations.mode=initContainer` renders a postgres Deployment/Service/PVC, drops the `lexis-data` PVC, and the api Deployment gains a migration initContainer with the Postgres `LEXIS_DATABASE_URL`.
 
+## Follow-ups (not done)
+
+- **Slim the `lexis-api` image (~352 MB now).** Weight is Python deps, not the base (`python:3.14-slim` is right; Alpine/musl breaks duckdb/pyarrow/cryptography wheels, distroless has no shell for the bash entrypoint + no 3.14). Biggest win: split `snowflake-connector-python` into a `[snowflake]` extra and lazy-import it (`src/lexis_api/main.py:8`, `connection_runtime.py:17`; `cli.py` already does), building a separate `-snowflake` variant → −~65 MB (connector + botocore's 27 MB of service JSON + cryptography + boto3). Then multi-stage + `strip --strip-unneeded` on `.so`s → −31 MB, and drop pip/`--no-compile` → −~22 MB. ~352 → ~235 MB.
+
 ## Out of scope
 
 - Real cluster concerns: Ingress controller wiring, cert-manager/TLS, cloud StorageClasses, HPA, PodDisruptionBudget, NetworkPolicy (chart leaves `ingress`/HPA hooks but they're unused here).

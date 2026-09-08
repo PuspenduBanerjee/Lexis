@@ -215,6 +215,18 @@ on PATH already, e.g. via the pyenv/venv `pip install -e ".[dev,api]"` above):
 ./scripts/dev.sh restart
 ```
 
+Set `LEXIS_DEV_SETUP_DEMO=1` (env var, honoured by the backend however it's
+launched) to skip the manual `curl` above: on startup the API writes the bundled
+demo datasets to `tpcds-demo.duckdb` / `retail-demo.duckdb` in the system temp dir
+(`/tmp` on Linux) and registers a `duckdb_file` connection for each (`tpcds-demo`,
+`retail-demo`), so the MCP endpoint and Run tab work immediately. Both steps are
+idempotent and self-heal after a reboot clears the temp dir. Relocate the files
+with `LEXIS_DEMO_DATA_DIR`. Leave the flag off in production.
+
+`./scripts/demo-dev.sh <start|stop|restart|status>` is a wrapper that runs
+`dev.sh` with `LEXIS_DEV_SETUP_DEMO=1` and `LEXIS_DEV_UI_PROXY=1` (single-port:
+the backend also serves the UI) preset — one command for a demo/tunnel setup.
+
 Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `LEXIS_API_PORT`/
 `LEXIS_WEB_PORT` env vars. The API writes one line per request to its log
 (`METHOD /path -> status`), including the `X-User-Email` / `X-User-Id` headers — if
@@ -250,7 +262,7 @@ starting-grain pickers), or "Metric query" for the original metric+group-by mode
 "Demo dataset" mode, an "Export demo dataset (.duckdb)" button downloads that same
 data as a real file - the CLI equivalent of `lexis export-demo-dataset` above.
 
-## Quickstart: Docker
+## Quickstart: Docker or Podman
 
 Two images: `lexis-api` (FastAPI backend, migrations run automatically on
 container start) and `lexis-web` (the built SPA served by nginx, which also
@@ -261,13 +273,31 @@ dev proxy uses, just in production).
 docker compose up -d --build
 ```
 
-Open `http://localhost:8080`. The SQLite database lives on a named volume
-(`lexis-data`, mounted at `/data` in the API container), so it survives
+Open `http://localhost:8000` (the `web` container publishes nginx's port 8080 on
+host `8000` - see `docker-compose.yml`). The SQLite database lives on a named
+volume (`lexis-data`, mounted at `/data` in the API container), so it survives
 `docker compose down`/`up` and container restarts - only `docker compose down -v`
 removes it. Override `LEXIS_CORS_ORIGINS`/`LEXIS_MAX_DUCKDB_UPLOAD_MB`/etc.
 (see `src/lexis_api/config.py`) via `environment:` in `docker-compose.yml` if
-needed; if you raise the upload cap, also raise nginx's `client_max_body_size` in
-`docker/nginx.conf` to match.
+needed - `LEXIS_CORS_ORIGINS` must list the origin you open in the browser, so
+change it too if you remap the published port; if you raise the upload cap, also
+raise nginx's `client_max_body_size` in `docker/nginx.conf` to match.
+
+nginx re-resolves the `api` service at runtime (a `resolver` generated from the
+container's DNS config at start, see `docker/nginx-resolver.sh`), so recreating
+just the API container - `compose up -d --force-recreate api`, which gives it a
+new IP - no longer 502s the frontend until `web` is restarted too.
+
+**Demo data + connections:** layer `docker-compose.demo.yml` on top to set
+`LEXIS_DEV_SETUP_DEMO=1` — the API then writes the bundled demo datasets and
+registers a `duckdb_file` connection for each (`tpcds-demo`, `retail-demo`) on
+startup, so the MCP endpoint / Run tab work with no manual `curl`. The `.duckdb`
+files go to `/data/demo` on the `lexis-data` volume (kept across restarts).
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+# docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+```
 
 To build the images without compose (e.g. for pushing to a registry):
 
@@ -277,6 +307,38 @@ To build the images without compose (e.g. for pushing to a registry):
 
 Both containers currently run as root and there's no HTTPS/reverse-auth in front of
 them - fine for local/trusted-network use, but harden before exposing publicly.
+
+### Using Podman instead
+
+The Dockerfiles pin fully-qualified base images (`docker.io/...`) so rootless
+Podman resolves them without prompting, and `docker-compose.yml` is a plain
+Compose file both engines read. Use **`podman compose`** (Podman 4.7+), which
+shells out to the Compose CLI (`docker compose` / `docker-compose`) pointed at the
+Podman socket - so healthchecks and `depends_on: condition: service_healthy`
+behave exactly as with Docker. The older standalone `podman-compose` package
+honours neither and is not recommended here. The API healthcheck runs a script
+file (`docker/healthcheck.py`) rather than an inline `python -c "..."` because
+Podman mangles multi-word exec-form healthcheck commands.
+
+```bash
+# one-time: start the rootless API socket the Compose provider talks to
+systemctl --user enable --now podman.socket
+
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
+podman compose up -d --build          # same flags as `docker compose`
+```
+
+Or build the images directly with Podman (no socket needed):
+
+```bash
+CONTAINER_ENGINE=podman ./scripts/docker-build.sh   # also auto-detected if docker isn't on PATH
+```
+
+Notes for rootless Podman: the `lexis-data` named volume lives under
+`~/.local/share/containers/storage/volumes/` (not a Docker volume); published
+ports `8080`/`8000` are >1024 so no privileged-port config is needed; and the
+in-container root user maps to your host UID, so the SQLite file on the volume is
+owned by you.
 
 ## Connecting to Snowflake or an external DuckDB file
 

@@ -11,6 +11,12 @@ services:
       - lexis-data:/data
     expose:
       - "8000"
+    # The image already runs as non-root (uid 1000); uvicorn/alembic need no
+    # Linux capabilities, so drop them all and block privilege escalation.
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
     healthcheck:
       # Script file, not an inline `python -c "..."` - Podman flattens a multi-word
       # exec-form healthcheck and breaks the -c script (see docker/healthcheck.py).
@@ -35,6 +41,18 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    security_opt:
+      - "no-new-privileges:true"
+    # nginx starts as root only to spawn workers as the unprivileged `nginx`
+    # user and read its config - CHOWN/SETUID/SETGID/DAC_OVERRIDE cover that.
+    # It listens on 8080 (>1024), so NET_BIND_SERVICE isn't needed.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
 
 volumes:
   lexis-data:

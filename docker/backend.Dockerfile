@@ -2,6 +2,12 @@
 # so this can COPY src/, pyproject.toml, and alembic.ini in one shot.
 FROM docker.io/python:3.14-slim
 
+# Pull whatever Debian security updates have shipped since the base image was
+# built. Most current CVEs against trixie's util-linux/perl-base cluster have no
+# upstream fix yet (local-privesc TOCTOU, not reachable by this API), but this
+# absorbs them automatically once Debian releases the point updates.
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # README.md is required at build time: pyproject.toml's `readme = "README.md"` makes
@@ -22,8 +28,16 @@ RUN chmod +x /usr/local/bin/backend-entrypoint.sh
 
 # SQLite lives on a volume, not in the image, so data survives container recreation.
 ENV LEXIS_DATABASE_URL=sqlite:////data/lexis.db
-RUN mkdir -p /data
+
+# Run as non-root. /data is chowned before VOLUME so the named volume inherits
+# `app` ownership on first use (Podman/Docker seed a fresh named volume from the
+# image path, permissions included); the entrypoint's alembic step and uvicorn
+# then write the SQLite file without needing root.
+RUN useradd --system --create-home --uid 1000 app \
+    && mkdir -p /data \
+    && chown -R app:app /data /app
 VOLUME /data
+USER app
 
 EXPOSE 8000
 ENTRYPOINT ["backend-entrypoint.sh"]

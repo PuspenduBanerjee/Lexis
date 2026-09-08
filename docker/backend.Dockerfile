@@ -1,6 +1,6 @@
 # Build context is the repo root (see docker-compose.yml / scripts/docker-build.sh) -
 # so this can COPY src/, pyproject.toml, and alembic.ini in one shot.
-FROM python:3.14-slim
+FROM docker.io/python:3.14-slim
 
 WORKDIR /app
 
@@ -17,6 +17,7 @@ COPY src ./src
 RUN pip install --no-cache-dir -e ".[api]"
 
 COPY docker/backend-entrypoint.sh /usr/local/bin/backend-entrypoint.sh
+COPY docker/healthcheck.py /usr/local/bin/lexis-healthcheck.py
 RUN chmod +x /usr/local/bin/backend-entrypoint.sh
 
 # SQLite lives on a volume, not in the image, so data survives container recreation.

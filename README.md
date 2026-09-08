@@ -250,7 +250,7 @@ starting-grain pickers), or "Metric query" for the original metric+group-by mode
 "Demo dataset" mode, an "Export demo dataset (.duckdb)" button downloads that same
 data as a real file - the CLI equivalent of `lexis export-demo-dataset` above.
 
-## Quickstart: Docker
+## Quickstart: Docker or Podman
 
 Two images: `lexis-api` (FastAPI backend, migrations run automatically on
 container start) and `lexis-web` (the built SPA served by nginx, which also
@@ -277,6 +277,38 @@ To build the images without compose (e.g. for pushing to a registry):
 
 Both containers currently run as root and there's no HTTPS/reverse-auth in front of
 them - fine for local/trusted-network use, but harden before exposing publicly.
+
+### Using Podman instead
+
+The Dockerfiles pin fully-qualified base images (`docker.io/...`) so rootless
+Podman resolves them without prompting, and `docker-compose.yml` is a plain
+Compose file both engines read. Use **`podman compose`** (Podman 4.7+), which
+shells out to the Compose CLI (`docker compose` / `docker-compose`) pointed at the
+Podman socket - so healthchecks and `depends_on: condition: service_healthy`
+behave exactly as with Docker. The older standalone `podman-compose` package
+honours neither and is not recommended here. The API healthcheck runs a script
+file (`docker/healthcheck.py`) rather than an inline `python -c "..."` because
+Podman mangles multi-word exec-form healthcheck commands.
+
+```bash
+# one-time: start the rootless API socket the Compose provider talks to
+systemctl --user enable --now podman.socket
+
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
+podman compose up -d --build          # same flags as `docker compose`
+```
+
+Or build the images directly with Podman (no socket needed):
+
+```bash
+CONTAINER_ENGINE=podman ./scripts/docker-build.sh   # also auto-detected if docker isn't on PATH
+```
+
+Notes for rootless Podman: the `lexis-data` named volume lives under
+`~/.local/share/containers/storage/volumes/` (not a Docker volume); published
+ports `8080`/`8000` are >1024 so no privileged-port config is needed; and the
+in-container root user maps to your host UID, so the SQLite file on the volume is
+owned by you.
 
 ## Connecting to Snowflake or an external DuckDB file
 

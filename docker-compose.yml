@@ -12,7 +12,9 @@ services:
     expose:
       - "8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
+      # Script file, not an inline `python -c "..."` - Podman flattens a multi-word
+      # exec-form healthcheck and breaks the -c script (see docker/healthcheck.py).
+      test: ["CMD", "python", "/usr/local/bin/lexis-healthcheck.py"]
       # Fast probes during startup (Engine 25.0+): failures inside start_period
       # don't count against `retries`, and the first success flips the container
       # to `healthy` and switches to the slower `interval` below. Keeps `web`

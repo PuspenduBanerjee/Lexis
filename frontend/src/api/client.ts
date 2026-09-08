@@ -140,8 +140,8 @@ export const api = {
 
   // Not routed through `request()`: the response is a binary file, not JSON, and
   // triggering a browser download is a side effect rather than data the caller uses.
-  exportDemoDataset: async (): Promise<void> => {
-    const res = await fetch("/api/demo-dataset/export", {
+  exportDemoDataset: async (dataset: "tpcds" | "retail" = "tpcds"): Promise<void> => {
+    const res = await fetch(`/api/demo-dataset/export?dataset=${dataset}`, {
       headers: { "X-Account-Id": String(getCurrentUserId()) },
     });
     if (!res.ok) {
@@ -152,7 +152,7 @@ export const api = {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "tpcds-demo.duckdb";
+    a.download = `${dataset}-demo.duckdb`;
     a.click();
     URL.revokeObjectURL(url);
   },

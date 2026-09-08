@@ -28,6 +28,28 @@ def test_export_demo_dataset_writes_a_working_duckdb_file(runner, tmp_path):
     assert rows == [(260.0,)]
 
 
+def test_export_demo_dataset_retail_writes_the_large_dataset(runner, tmp_path):
+    out_path = tmp_path / "retail.duckdb"
+    result = runner.invoke(
+        main, ["export-demo-dataset", "--dataset", "retail", "--out", str(out_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    con = duckdb.connect(str(out_path), read_only=True)
+    (sales,) = con.execute("SELECT COUNT(*) FROM public.fct_store_sales").fetchone()
+    (returns,) = con.execute("SELECT COUNT(*) FROM public.fct_store_returns").fetchone()
+    con.close()
+    assert sales == 10_000
+    assert returns == 1_500
+
+
+def test_export_demo_dataset_rejects_an_unknown_dataset(runner, tmp_path):
+    result = runner.invoke(
+        main, ["export-demo-dataset", "--dataset", "nope", "--out", str(tmp_path / "x.duckdb")]
+    )
+    assert result.exit_code != 0
+
+
 def test_export_demo_dataset_refuses_to_overwrite_without_force(runner, tmp_path):
     out_path = tmp_path / "demo.duckdb"
     out_path.write_bytes(b"not a real duckdb file")

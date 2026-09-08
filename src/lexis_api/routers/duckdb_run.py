@@ -20,15 +20,15 @@ from lexis._vendor.ossie import OssieDialect
 from lexis.demo_data import export_demo_dataset
 from lexis.parser import parse_ossie_yaml
 from lexis.resolved_model import ResolvedModel
+from lexis.retail_demo_data import export_retail_demo_dataset
 from lexis_api.config import settings
 from lexis_api.connection_runtime import emitter_for_connection_type, get_connection_or_404, open_connection
 from lexis_api.db import get_db
 from lexis_api.deps import get_current_user, get_visible_model
 from lexis_api.duckdb_runtime import (
-    build_tpcds_demo_connection,
     catalog_name_for_upload,
-    check_demo_compatible,
     open_uploaded_database,
+    resolve_demo_builder,
     run_metric_query,
     run_timeseries_query,
     saved_upload,
@@ -44,22 +44,34 @@ demo_router = APIRouter(prefix="/api/demo-dataset", tags=["duckdb"])
 RunMode = Literal["upload", "demo", "connection"]
 
 
+_DEMO_DATASET_EXPORT = {
+    "tpcds": (export_demo_dataset, "tpcds-demo.duckdb"),
+    "retail": (export_retail_demo_dataset, "retail-demo.duckdb"),
+}
+
+
 @demo_router.get("/export")
 def export_demo_dataset_endpoint(
+    dataset: str = "tpcds",
     user: User = Depends(get_current_user),  # noqa: ARG001 - requires a resolvable user
 ) -> FileResponse:
-    """Download the bundled demo dataset as a real .duckdb file - the same data the
-    "Demo dataset" run mode uses in-memory, so it can be re-uploaded or registered as
-    a duckdb_file connection. Builds to a size-unbounded temp file (it's a small fixed
-    dataset, not user input) that's deleted once the response finishes streaming."""
+    """Download a bundled demo dataset (`dataset=tpcds` or `dataset=retail`) as a
+    real .duckdb file - the same data the "Demo dataset" run mode uses in-memory, so
+    it can be re-uploaded or registered as a duckdb_file connection. Builds to a
+    size-unbounded temp file (a small fixed dataset, not user input) that's deleted
+    once the response finishes streaming."""
+    if dataset not in _DEMO_DATASET_EXPORT:
+        raise HTTPException(status_code=400, detail=f"unknown demo dataset {dataset!r}")
+    exporter, filename = _DEMO_DATASET_EXPORT[dataset]
+
     fd, tmp_name = tempfile.mkstemp(dir=settings.upload_tmp_dir, suffix=".duckdb")
     os.close(fd)
     tmp_path = Path(tmp_name)
-    export_demo_dataset(tmp_path, overwrite=True)  # mkstemp already created an empty file at tmp_path
+    exporter(tmp_path, overwrite=True)  # mkstemp already created an empty file at tmp_path
     return FileResponse(
         tmp_path,
         media_type="application/octet-stream",
-        filename="tpcds-demo.duckdb",
+        filename=filename,
         background=BackgroundTask(tmp_path.unlink, missing_ok=True),
     )
 
@@ -86,8 +98,7 @@ def run_duckdb(
     referenced |= {ref.split(".", 1)[0] for ref in group_by}
 
     if mode == "demo":
-        check_demo_compatible(model, referenced)
-        con = build_tpcds_demo_connection()
+        con = resolve_demo_builder(model, referenced)()
         try:
             result = run_metric_query(con, model, metric, group_by or None)
         finally:
@@ -139,8 +150,7 @@ def run_duckdb_timeseries(
     referenced = set(model.referenced_datasets(metric_expr)) | {time_dataset}
 
     if mode == "demo":
-        check_demo_compatible(model, referenced)
-        con = build_tpcds_demo_connection()
+        con = resolve_demo_builder(model, referenced)()
         try:
             result = run_timeseries_query(
                 con, model, metric, time_dataset, time_field, grain, filter_grain, filter_value

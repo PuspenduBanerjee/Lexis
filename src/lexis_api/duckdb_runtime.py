@@ -1,4 +1,4 @@
-"""Live DuckDB execution: upload handling, the bundled TPC-DS demo dataset, and running
+"""Live DuckDB execution: upload handling, the bundled demo datasets, and running
 the emitter's generated SQL for real.
 
 Both demo and upload modes run the emitted SQL **unmodified** (no string rewriting):
@@ -7,15 +7,16 @@ and DuckDB supports attaching a secondary catalog under an explicit name via
 `ATTACH ... AS <name>` (including `ATTACH ':memory:' AS tpcds` for an in-memory one) -
 so both paths just attach a database under the catalog name the model's SQL expects.
 
-The demo dataset itself (`build_tpcds_demo_connection`/`TPCDS_DEMO_SOURCES`) lives in
-`lexis.demo_data` (core library, not this API package) so the CLI's
-`export-demo-dataset` command can reuse the exact same CREATE/INSERT statements
-without depending on lexis_api.
+The demo datasets themselves live in the core library (not this API package) so the
+CLI's `export-demo-dataset` command can reuse them without depending on lexis_api:
+`lexis.demo_data` (the small fixed TPC-DS fixture) and `lexis.retail_demo_data` (the
+larger generated retail analytics dataset). `_DEMO_DATASETS` / `resolve_demo_builder`
+below pick whichever one backs the model being run.
 """
 
 import re
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -24,16 +25,19 @@ from fastapi import HTTPException, UploadFile
 
 from lexis.demo_data import TPCDS_DEMO_SOURCES, build_tpcds_demo_connection
 from lexis.resolved_model import ResolvedModel
+from lexis.retail_demo_data import RETAIL_DEMO_SOURCES, build_retail_demo_connection
 from lexis.transpilers.sql import DuckDBEmitter
 from lexis_api.config import settings
 from lexis_api.query_runtime import run_metric_query as _run_metric_query
 from lexis_api.query_runtime import run_timeseries_query as _run_timeseries_query
 
 __all__ = [
+    "build_retail_demo_connection",
     "build_tpcds_demo_connection",
     "catalog_name_for_upload",
     "check_demo_compatible",
     "open_uploaded_database",
+    "resolve_demo_builder",
     "run_metric_query",
     "run_timeseries_query",
     "saved_upload",
@@ -41,18 +45,39 @@ __all__ = [
 
 _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+DemoConnectionBuilder = Callable[[], duckdb.DuckDBPyConnection]
+
+#: Every bundled demo dataset, keyed by the catalog its `source` values use: the
+#: set of `catalog.schema.table` sources it provides, and the builder that
+#: materialises it in-memory. `resolve_demo_builder` picks the one that fully
+#: covers a model's referenced datasets.
+_DEMO_DATASETS: dict[str, tuple[frozenset[str], DemoConnectionBuilder]] = {
+    "tpcds": (frozenset(TPCDS_DEMO_SOURCES), build_tpcds_demo_connection),
+    "retail": (RETAIL_DEMO_SOURCES, build_retail_demo_connection),
+}
+
+_DEMO_INCOMPATIBLE_DETAIL = (
+    "the bundled demo datasets only support models built on a supported fixture "
+    "schema: the TPC-DS fixture (tpcds.public.store_sales/customer/item/date_dim) "
+    "or the retail analytics fixture (retail.public.fct_store_sales/fct_store_returns "
+    "and its conformed dimensions)"
+)
+
+
+def resolve_demo_builder(model: ResolvedModel, dataset_names: set[str]) -> DemoConnectionBuilder:
+    """The bundled-demo connection builder whose fixture schema backs every one of
+    `model`'s `dataset_names`. Raises HTTP 400 if they span more than one demo
+    fixture or reference a source no bundled demo provides."""
+    sources = {model.datasets[name].source for name in dataset_names}
+    for known_sources, builder in _DEMO_DATASETS.values():
+        if sources <= known_sources:
+            return builder
+    raise HTTPException(status_code=400, detail=_DEMO_INCOMPATIBLE_DETAIL)
+
 
 def check_demo_compatible(model: ResolvedModel, dataset_names: set[str]) -> None:
-    for name in dataset_names:
-        source = model.datasets[name].source
-        if source not in TPCDS_DEMO_SOURCES:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "the bundled demo dataset only supports models built on the "
-                    "TPC-DS fixture schema (store_sales/customer/item)"
-                ),
-            )
+    """Back-compat shim: raise if no single bundled demo covers `dataset_names`."""
+    resolve_demo_builder(model, dataset_names)
 
 
 def catalog_name_for_upload(model: ResolvedModel, dataset_names: set[str]) -> str:

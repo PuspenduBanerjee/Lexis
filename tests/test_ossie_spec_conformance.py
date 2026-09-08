@@ -30,6 +30,16 @@ def test_tpcds_fixture_conforms_to_upstream_schema():
     jsonschema.validate(document, schema)
 
 
+def test_bundled_retail_analytics_model_conforms_to_upstream_schema():
+    from importlib import resources
+
+    schema = json.loads(SCHEMA_PATH.read_text())
+    document = yaml.safe_load(
+        (resources.files("lexis_api.sample_data") / "retail_analytics_model.yaml").read_text()
+    )
+    jsonschema.validate(document, schema)
+
+
 def test_vendored_models_match_submodule_source():
     vendored = Path(__file__).parent.parent / "src" / "lexis" / "_vendor" / "ossie" / "models.py"
     upstream = OSSIE_SUBMODULE / "python" / "src" / "ossie" / "models.py"

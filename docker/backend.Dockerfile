@@ -24,6 +24,16 @@ COPY pyproject.toml README.md LICENSE NOTICE alembic.ini ./
 # layer, so it doesn't bloat the image.)
 COPY src/lexis ./src/lexis
 
+# hatch-vcs derives the package version from git, but .dockerignore keeps .git
+# out of the build context - so give setuptools-scm an explicit version or the
+# editable install below fails outright. CI's release build passes the real
+# version (`--build-arg LEXIS_VERSION=X.Y.Z`); local builds get 0.0.0.
+ARG LEXIS_VERSION=0.0.0
+# Unscoped (not ..._FOR_LEXIS_CLI) - hatch-vcs doesn't pass a dist name to
+# setuptools-scm, so the scoped form isn't matched. Only one scm package builds
+# in this image, so the global var is unambiguous.
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${LEXIS_VERSION}
+
 # Editable install: the wheel's `packages` config only lists src/lexis (the
 # published PyPI package should stay CLI/library-only), but a source install of
 # this image needs lexis_api too - editable mode adds the whole src/ tree to the

@@ -1,12 +1,12 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "lexis-cli"
-# Development baseline. Release builds overwrite this from the git tag - see the
-# "Set version from tag" step in .github/workflows/publish.yml.
-version = "0.3.0"
+# Version is derived from the git tag by hatch-vcs (see [tool.hatch.version]):
+# exactly `X.Y.Z` on a `vX.Y.Z` commit, `X.Y.(Z+1).devN+g<sha>` after it.
+dynamic = ["version"]
 description = "Ossie-native semantic layer: author models once, transpile to warehouse-native SQL and BI/AI consumer formats"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -67,6 +67,10 @@ api = [
 
 [project.scripts]
 lexis = "lexis.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+# `v1.2.3` -> `1.2.3`. hatch-vcs strips the leading `v` by default.
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lexis"]

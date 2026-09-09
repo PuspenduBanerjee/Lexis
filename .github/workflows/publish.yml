@@ -13,12 +13,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Set version from tag
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          echo "Building lexis-cli $v (tag $GITHUB_REF_NAME)"
+          sed -i -E "s/^version = \".*\"/version = \"$v\"/" pyproject.toml
+          grep -E '^version = ' pyproject.toml
+
       - run: pip install hatch
       - run: hatch build
       - name: Verify wheel doesn't leak lexis_api
         run: |
           python -m zipfile -l dist/*.whl | grep -q '^lexis_api' && \
             { echo "ERROR: lexis_api leaked into the wheel"; exit 1; } || true
+      - name: Verify wheel version matches the tag
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          ls "dist/lexis_cli-$v-py3-none-any.whl" "dist/lexis_cli-$v.tar.gz"
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -36,3 +48,21 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release / upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Attach the sdist + wheel to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+              --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes \
+            || gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber

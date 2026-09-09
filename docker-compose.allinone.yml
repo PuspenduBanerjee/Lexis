@@ -1,0 +1,36 @@
+# Single-container deployment: the web UI and the API in one image on one port.
+#
+#   docker compose -f docker-compose.allinone.yml up -d --build
+#   podman compose -f docker-compose.allinone.yml up -d --build
+#
+# Then open http://localhost:8000 - the SPA and its /api/* calls are same-origin.
+# Use docker-compose.yml instead when you want the UI (nginx) and API as separate
+# services.
+#
+# For a demo-ready instance (bundled datasets + connections seeded on startup),
+# layer the demo overlay on top:
+#   docker compose -f docker-compose.allinone.yml -f docker-compose.allinone.demo.yml up -d --build
+services:
+  lexis:
+    build:
+      context: .
+      dockerfile: docker/allinone.Dockerfile
+    image: lexis:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - lexis-data:/data
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "/usr/local/bin/lexis-healthcheck.py"]
+      start_period: 60s
+      start_interval: 5s
+      interval: 60s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lexis-data:

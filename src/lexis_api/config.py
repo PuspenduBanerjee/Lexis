@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     # UI - see dev_proxy.py. Unset in production (nginx serves the built
     # frontend there instead - docker/nginx.conf).
     dev_ui_proxy_target: str | None = None
+    # Single-image mode: when set to the Vite build output directory, this app
+    # also serves the built frontend from `/` (with SPA deep-link fallback), so
+    # one container exposes both the API and the UI - see static.py and
+    # docker/allinone.Dockerfile. Unset for a plain API/library install or the
+    # split api+nginx compose setup (docker/nginx.conf serves the frontend there).
+    frontend_dist_dir: str | None = None
 
 
 settings = Settings()

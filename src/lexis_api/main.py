@@ -18,6 +18,7 @@ from lexis_api.dev_proxy import mount_dev_ui_proxy
 from lexis_api.routers import connections, duckdb_run, graph, health, models, transpile, users
 from lexis_api.routers.mcp import mcp_asgi_app, mcp_workspace_asgi_app, mcp_workspace_bare_route
 from lexis_api.seed import seed_default_users, seed_demo_connections, seed_sample_models
+from lexis_api.static import mount_spa
 
 
 @asynccontextmanager
@@ -132,3 +133,8 @@ app.mount("/api/mcp", mcp_workspace_asgi_app)
 # shadows a real `/api/...` route/mount above.
 if settings.dev_ui_proxy_target:
     mount_dev_ui_proxy(app, settings.dev_ui_proxy_target)
+
+# Single-image mode, off by default - see static.py. Mounted last (after every
+# `/api/...` route and after the dev proxy) so it only handles non-API paths.
+if settings.frontend_dist_dir:
+    mount_spa(app, settings.frontend_dist_dir)

@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "lexis-cli"
 # Development baseline. Release builds overwrite this from the git tag - see the
 # "Set version from tag" step in .github/workflows/publish.yml.
-version = "0.2.0"
+version = "0.3.0"
 description = "Ossie-native semantic layer: author models once, transpile to warehouse-native SQL and BI/AI consumer formats"
 readme = "README.md"
 requires-python = ">=3.11"

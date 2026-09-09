@@ -1,0 +1,69 @@
+# Run Lexis from the prebuilt images on Docker Hub instead of building locally.
+#
+#   podman compose -f docker-compose-dockerhub.yml up -d
+#   docker compose -f docker-compose-dockerhub.yml up -d
+#
+# Images are published by .github/workflows/publish-images.yml on each vX.Y.Z tag.
+# Pin a release with LEXIS_IMAGE_TAG (default "latest"):
+#   LEXIS_IMAGE_TAG=0.2.0 podman compose -f docker-compose-dockerhub.yml up -d
+#
+# Layer the demo overlay on top for demo datasets + connections:
+#   podman compose -f docker-compose-dockerhub.yml -f docker-compose.demo.yml up -d
+services:
+  api:
+    image: docker.io/puspendubanerjee/lexis-api:${LEXIS_IMAGE_TAG:-latest}
+    pull_policy: always
+    environment:
+      # pydantic-settings parses list-typed env vars as JSON. Must list the origin
+      # opened in the browser - match it if you remap the published port below.
+      LEXIS_CORS_ORIGINS: '["http://localhost:8000"]'
+    volumes:
+      - lexis-data:/data
+    expose:
+      - "8000"
+    # The image already runs as non-root (uid 1000); uvicorn/alembic need no
+    # Linux capabilities, so drop them all and block privilege escalation.
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    healthcheck:
+      # Script file, not an inline `python -c "..."` - Podman flattens a multi-word
+      # exec-form healthcheck and breaks the -c script (see docker/healthcheck.py).
+      test: ["CMD", "python", "/usr/local/bin/lexis-healthcheck.py"]
+      # `interval` is kept low because Podman ignores `start_interval` (Docker
+      # Engine 25.0+'s fast-startup-probe key): under Podman the first probe only
+      # fires once a full `interval` has elapsed, so a 60s interval makes `web`
+      # (depends_on: condition: service_healthy) wait ~a minute. At 10s the first
+      # probe - and the flip to `healthy` - lands within ~10-20s on both engines.
+      # `start_period` is honoured by both (failures inside it don't count against
+      # `retries`); `start_interval` stays for Docker's benefit, a no-op on Podman.
+      start_period: 60s
+      start_interval: 5s
+      interval: 60s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: docker.io/puspendubanerjee/lexis-web:${LEXIS_IMAGE_TAG:-latest}
+    pull_policy: always
+    ports:
+      - "8000:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - "no-new-privileges:true"
+    # nginx starts as root only to spawn workers as the unprivileged `nginx`
+    # user and read its config - CHOWN/SETUID/SETGID/DAC_OVERRIDE cover that.
+    # It listens on 8080 (>1024), so NET_BIND_SERVICE isn't needed.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+
+volumes:
+  lexis-data:

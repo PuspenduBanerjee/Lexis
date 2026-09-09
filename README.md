@@ -299,6 +299,18 @@ podman compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
 # docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
 ```
 
+**Prebuilt images:** `docker-compose-dockerhub.yml` / `docker-compose-ghcr.yml`
+run the published images instead of building locally — `.github/workflows/publish-images.yml`
+builds once per `vX.Y.Z` tag and pushes the same image to both
+`docker.io/puspendubanerjee/lexis-{api,web}` and `ghcr.io/puspendubanerjee/lexis-{api,web}`:
+
+```bash
+podman compose -f docker-compose-dockerhub.yml up -d                              # Docker Hub
+podman compose -f docker-compose-ghcr.yml up -d                                   # GHCR
+LEXIS_IMAGE_TAG=0.2.0 podman compose -f docker-compose-ghcr.yml up -d             # pin a release
+podman compose -f docker-compose-ghcr.yml -f docker-compose.demo.yml up -d        # + demo data
+```
+
 To build the images without compose (e.g. for pushing to a registry):
 
 ```bash

@@ -12,6 +12,10 @@ RUN npm run build
 # Alpine security fixes the pinned base image hasn't been rebuilt with yet.
 FROM docker.io/nginx:1.29-alpine-slim
 
+# Declared (unused) so a shared `--build-arg LEXIS_VERSION=...` from CI doesn't
+# warn here - the frontend image carries no Python package to version.
+ARG LEXIS_VERSION
+
 RUN apk upgrade --no-cache
 
 COPY --from=build /app/dist /usr/share/nginx/html

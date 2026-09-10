@@ -89,10 +89,46 @@ def test_list_metrics_returns_names_descriptions_and_group_by_refs(client_as, mo
     _initialize(client)
 
     result = _call_tool(client, "list_metrics", {"model_id": model_id})
-    metrics = {m["name"]: m for m in result["structuredContent"]["metrics"]}
+    sc = result["structuredContent"]
+    metrics = {m["name"]: m for m in sc["metrics"]}
     assert "total_sales" in metrics
     assert "item.i_category" in metrics["total_sales"]["group_by"]
     assert metrics["total_sales"]["description"]
+    assert sc["time_fields"] == ["date_dim.d_date"]
+    assert "week" in sc["time_grains"]
+
+
+def test_query_metric_buckets_by_week(client_as, model_id, connection_id):
+    client = client_as("viewer")
+    _initialize(client)
+
+    result = _call_tool(
+        client,
+        "query_metric",
+        {"model_id": model_id, "metric": "total_sales", "connection_id": connection_id, "time_grain": "week"},
+    )
+    assert result["isError"] is False
+    sc = result["structuredContent"]
+    assert sc["columns"] == ["period", "total_sales"]
+    assert "DATE_TRUNC('week'" in sc["sql"]
+
+
+def test_query_metric_time_grain_with_group_by_is_a_clean_error(client_as, model_id, connection_id):
+    client = client_as("viewer")
+    _initialize(client)
+
+    result = _call_tool(
+        client,
+        "query_metric",
+        {
+            "model_id": model_id,
+            "metric": "total_sales",
+            "connection_id": connection_id,
+            "time_grain": "week",
+            "group_by": ["item.i_category"],
+        },
+    )
+    assert result["isError"] is True
 
 
 def test_query_metric_executes_a_real_query(client_as, model_id, connection_id):

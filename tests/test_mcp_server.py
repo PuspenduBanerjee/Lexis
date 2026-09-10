@@ -19,8 +19,13 @@ def _call_tool(server, name: str, arguments: dict):
 def recording_execute():
     calls = []
 
-    def execute(metric: str, group_by: list[str] | None) -> dict:
-        calls.append((metric, group_by))
+    def execute(
+        metric: str,
+        group_by: list[str] | None,
+        time_grain: str | None = None,
+        time_field: str | None = None,
+    ) -> dict:
+        calls.append((metric, group_by, time_grain, time_field))
         return {"columns": ["x"], "rows": [[1]], "row_count": 1, "sql": "SELECT 1"}
 
     execute.calls = calls
@@ -44,7 +49,7 @@ def test_call_tool_dispatches_to_execute_with_metric_and_group_by(tpcds_model, r
     server = build_server(tpcds_model, recording_execute)
     result = _call_tool(server, "query_total_sales", {"group_by": ["item.i_category"]})
 
-    assert recording_execute.calls == [("total_sales", ["item.i_category"])]
+    assert recording_execute.calls == [("total_sales", ["item.i_category"], None, None)]
     assert result.root.isError is False
     assert result.root.structuredContent == {
         "columns": ["x"],
@@ -57,7 +62,21 @@ def test_call_tool_dispatches_to_execute_with_metric_and_group_by(tpcds_model, r
 def test_call_tool_without_group_by_passes_none(tpcds_model, recording_execute):
     server = build_server(tpcds_model, recording_execute)
     _call_tool(server, "query_total_sales", {})
-    assert recording_execute.calls == [("total_sales", None)]
+    assert recording_execute.calls == [("total_sales", None, None, None)]
+
+
+def test_call_tool_passes_time_grain_and_field_through(tpcds_model, recording_execute):
+    server = build_server(tpcds_model, recording_execute)
+    _call_tool(server, "query_total_sales", {"time_grain": "week", "time_field": "date_dim.d_date"})
+    assert recording_execute.calls == [("total_sales", None, "week", "date_dim.d_date")]
+
+
+def test_tool_schema_exposes_time_grain_when_model_has_a_date_field(tpcds_model, recording_execute):
+    server = build_server(tpcds_model, recording_execute)
+    tools = {t.name: t for t in _list_tools(server).root.tools}
+    props = tools["query_total_sales"].inputSchema["properties"]
+    assert props["time_grain"]["enum"] == ["day", "week", "month", "quarter", "year"]
+    assert props["time_field"]["enum"] == ["date_dim.d_date"]
 
 
 def test_call_unknown_tool_is_an_error_result(tpcds_model, recording_execute):

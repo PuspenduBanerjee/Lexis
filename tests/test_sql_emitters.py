@@ -72,6 +72,30 @@ def test_timeseries_query_with_drill_down_filter(tpcds_model):
     assert "WHERE DATE_TRUNC('quarter', \"date_dim\".d_date) = DATE '2024-01-01'" in sql
 
 
+def test_timeseries_query_supports_week_grain(tpcds_model):
+    sql = DuckDBEmitter().emit_timeseries_query(tpcds_model, "total_sales", "date_dim", "d_date", "week")
+    assert 'SELECT DATE_TRUNC(\'week\', "date_dim".d_date) AS "period"' in sql
+
+
+def test_timeseries_week_rolls_up_to_iso_monday_buckets(tpcds_model):
+    con = duckdb.connect()
+    con.execute("CREATE SCHEMA tpcds")
+    con.execute(
+        "CREATE TABLE tpcds.store_sales (ss_sold_date_sk INT, ss_ext_sales_price DOUBLE, ss_net_profit DOUBLE)"
+    )
+    con.execute("CREATE TABLE tpcds.date_dim (d_date_sk INT, d_date DATE)")
+    # 2024-01-03 (Wed) and 2024-01-07 (Sun) are the same ISO week (starts Mon 2024-01-01);
+    # 2024-01-08 (Mon) starts the next one.
+    con.execute("INSERT INTO tpcds.store_sales VALUES (1,10.0,1.0),(2,20.0,2.0),(3,5.0,0.5)")
+    con.execute(
+        "INSERT INTO tpcds.date_dim VALUES (1,DATE '2024-01-03'),(2,DATE '2024-01-07'),(3,DATE '2024-01-08')"
+    )
+    sql = DuckDBEmitter().emit_timeseries_query(tpcds_model, "total_sales", "date_dim", "d_date", "week")
+    sql = sql.replace("tpcds.public.", "tpcds.")
+    rows = {r[0].isoformat()[:10]: r[1] for r in con.execute(sql).fetchall()}
+    assert rows == pytest.approx({"2024-01-01": 30.0, "2024-01-08": 5.0})
+
+
 def test_timeseries_query_rejects_unsupported_grain(tpcds_model):
     with pytest.raises(ValueError, match="Unsupported time grain"):
         DuckDBEmitter().emit_timeseries_query(tpcds_model, "total_sales", "date_dim", "d_date", "century")

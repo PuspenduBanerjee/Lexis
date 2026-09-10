@@ -7,10 +7,22 @@ from importlib import resources
 
 import pytest
 
+from lexis.parser import parse_ossie_yaml
+from lexis.resolved_model import ResolvedModel
+from lexis.transpilers.mcp import model_instructions, time_axis_refs
+
 
 @pytest.fixture()
 def retail_yaml() -> str:
     return (resources.files("lexis_api.sample_data") / "retail_analytics_model.yaml").read_text()
+
+
+def test_retail_model_hints_its_us_retail_week_in_ai_context(retail_yaml):
+    model = ResolvedModel.build(parse_ossie_yaml(retail_yaml).semantic_model[0])
+    assert time_axis_refs(model) == ["dim_date.d_date"]
+    instructions = model_instructions(model)
+    assert "time_grain=week" in instructions
+    assert "Sunday" in instructions  # ISO buckets by default, but label as US retail weeks
 
 
 @pytest.fixture()

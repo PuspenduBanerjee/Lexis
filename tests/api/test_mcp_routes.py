@@ -90,6 +90,62 @@ def test_tools_call_executes_a_real_query(client_as, model_id, connection_id):
     assert result["structuredContent"]["row_count"] == 2
 
 
+def test_tools_call_buckets_by_week_grain(client_as, model_id, connection_id):
+    client = client_as("viewer")
+    _initialize(client, model_id, connection_id)
+
+    body = _rpc(
+        client,
+        model_id,
+        connection_id,
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "query_total_sales", "arguments": {"time_grain": "week"}},
+        },
+    )
+    result = body["result"]
+    assert result["isError"] is False
+    sc = result["structuredContent"]
+    assert sc["columns"] == ["period", "total_sales"]
+    assert "DATE_TRUNC('week'" in sc["sql"]
+    # the tpcds demo fixture has 6 dated sales rows -> a handful of weekly buckets
+    assert 1 <= sc["row_count"] <= 6
+
+
+def test_tools_call_rejects_time_grain_with_group_by(client_as, model_id, connection_id):
+    client = client_as("viewer")
+    _initialize(client, model_id, connection_id)
+
+    body = _rpc(
+        client,
+        model_id,
+        connection_id,
+        {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+                "name": "query_total_sales",
+                "arguments": {"time_grain": "week", "group_by": ["item.i_category"]},
+            },
+        },
+    )
+    result = body["result"]
+    assert result["isError"] is True
+    assert "group_by" in str(result["content"]).lower()
+
+
+def test_tools_list_exposes_week_grain(client_as, model_id, connection_id):
+    client = client_as("viewer")
+    _initialize(client, model_id, connection_id)
+    body = _rpc(client, model_id, connection_id, {"jsonrpc": "2.0", "id": 6, "method": "tools/list", "params": {}})
+    tool = next(t for t in body["result"]["tools"] if t["name"] == "query_total_sales")
+    assert "week" in tool["inputSchema"]["properties"]["time_grain"]["enum"]
+    assert tool["inputSchema"]["properties"]["time_field"]["enum"] == ["date_dim.d_date"]
+
+
 def test_unknown_connection_id_is_404(client_as, model_id):
     client = client_as("viewer")
     resp = client.post(

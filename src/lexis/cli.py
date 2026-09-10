@@ -279,8 +279,15 @@ def mcp_serve(
 
     with con_cm as con:
 
-        def execute(metric: str, group_by: list[str] | None) -> dict:
-            return mcp_server_module.run_metric_query(con, emitter, model, metric, group_by)
+        def execute(
+            metric: str,
+            group_by: list[str] | None,
+            time_grain: str | None = None,
+            time_field: str | None = None,
+        ) -> dict:
+            return mcp_server_module.run_metric_or_timeseries(
+                con, emitter, model, metric, group_by, time_grain, time_field
+            )
 
         server = mcp_server_module.build_server(model, execute)
 

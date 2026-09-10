@@ -18,8 +18,12 @@ class SqlDialectEmitter:
     dialect: OssieDialect
     quote_char: str = '"'
 
-    #: Grains supported by `emit_timeseries_query`, coarsest first.
-    TIME_GRAINS = ("year", "quarter", "month", "day")
+    #: Grains supported by `emit_timeseries_query`, coarsest first. `week` is an
+    #: ISO 8601 week (Monday start) - what `DATE_TRUNC('week', ...)` returns natively
+    #: on DuckDB / Postgres / Snowflake (default `WEEK_START`) / Spark. A model whose
+    #: business calendar uses a different week (e.g. US retail Sunday-Saturday) should
+    #: say so in its `ai_context` so consumers interpret weekly rows accordingly.
+    TIME_GRAINS = ("year", "quarter", "month", "week", "day")
 
     def quote(self, identifier: str) -> str:
         return f"{self.quote_char}{identifier}{self.quote_char}"

@@ -29,7 +29,11 @@ semantic_model:
         (a basket/transaction). `fct_store_returns` is a separate fact - do not
         combine sales and returns metrics in one query. Group sales metrics by
         item, store, customer, promotion, or date attributes. Dates are keyed by a
-        YYYYMMDD integer surrogate key (`*_date_sk`).
+        YYYYMMDD integer surrogate key (`*_date_sk`). For weekly trends, use a
+        query with time_grain=week on dim_date.d_date; the buckets it returns are
+        ISO 8601 weeks (Monday-Sunday), but this business reports on US retail
+        weeks (Sunday-Saturday), so label each bucket by the Sunday that starts it
+        and note the one-day offset when comparing to internal weekly reports.
 
     datasets:
       # ---- Fact: store sales (line-item grain) --------------------------------
@@ -301,6 +305,7 @@ semantic_model:
                 - dialect: ANSI_SQL
                   expression: d_date
             description: Calendar date
+            datatype: Date
             dimension:
               is_time: true
             ai_context:

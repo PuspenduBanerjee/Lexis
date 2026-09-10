@@ -18,6 +18,7 @@ from lexis_api.dev_proxy import mount_dev_ui_proxy
 from lexis_api.routers import connections, duckdb_run, graph, health, models, transpile, users
 from lexis_api.routers.mcp import mcp_asgi_app, mcp_workspace_asgi_app, mcp_workspace_bare_route
 from lexis_api.seed import seed_default_users, seed_demo_connections, seed_sample_models
+from lexis_api.static import mount_spa
 
 
 @asynccontextmanager
@@ -45,9 +46,10 @@ app.add_middleware(
 # One line per request into the app's stdout (captured to .dev/api.log by
 # scripts/dev.sh, or the container log under Docker). Includes the identity
 # headers ngrok's OAuth traffic policy injects upstream from the Google identity
-# (`X-User-Email` / `X-User-Id`) - "-" for direct/local requests that don't pass
-# through the tunnel. Own logger + handler so it works regardless of how the app
-# is launched (uvicorn CLI configures its own loggers but leaves the root bare).
+# (`X-User-Email` / `X-User-Id` / `X-User-Name`) - "-" for direct/local requests
+# that don't pass through the tunnel. Own logger + handler so it works regardless
+# of how the app is launched (uvicorn CLI configures its own loggers but leaves
+# the root bare).
 access_logger = logging.getLogger("lexis_api.access")
 if not access_logger.handlers:
     _handler = logging.StreamHandler(sys.stdout)
@@ -60,12 +62,13 @@ if not access_logger.handlers:
 async def log_request_identity(request: Request, call_next):
     response = await call_next(request)
     access_logger.info(
-        "%s %s -> %d  X-User-Email=%s X-User-Id=%s",
+        "%s %s -> %d  X-User-Email=%s X-User-Id=%s X-User-Name=%s",
         request.method,
         request.url.path,
         response.status_code,
         request.headers.get("x-user-email", "-"),
         request.headers.get("x-user-id", "-"),
+        request.headers.get("x-user-name", "-"),
     )
     return response
 
@@ -132,3 +135,8 @@ app.mount("/api/mcp", mcp_workspace_asgi_app)
 # shadows a real `/api/...` route/mount above.
 if settings.dev_ui_proxy_target:
     mount_dev_ui_proxy(app, settings.dev_ui_proxy_target)
+
+# Single-image mode, off by default - see static.py. Mounted last (after every
+# `/api/...` route and after the dev proxy) so it only handles non-API paths.
+if settings.frontend_dist_dir:
+    mount_spa(app, settings.frontend_dist_dir)

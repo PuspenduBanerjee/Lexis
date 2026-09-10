@@ -1,9 +1,11 @@
 import type { ModelDetailOut } from "../api/types";
 
-export type TimeGrain = "year" | "quarter" | "month" | "day";
+export type TimeGrain = "year" | "quarter" | "month" | "week" | "day";
 
-/** Coarsest first - mirrors `SqlDialectEmitter.TIME_GRAINS` in the backend. */
-export const TIME_GRAINS: TimeGrain[] = ["year", "quarter", "month", "day"];
+/** Coarsest first - mirrors `SqlDialectEmitter.TIME_GRAINS` in the backend.
+ * `week` is an ISO 8601 week (Monday start); drilling month → week → day works
+ * because a week bucket's period value is its Monday, a valid `filter_value`. */
+export const TIME_GRAINS: TimeGrain[] = ["year", "quarter", "month", "week", "day"];
 
 export function finerGrain(grain: TimeGrain): TimeGrain | null {
   const i = TIME_GRAINS.indexOf(grain);

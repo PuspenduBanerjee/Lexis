@@ -28,7 +28,6 @@ from starlette.types import Receive, Scope, Send
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 from lexis import mcp_server as mcp_server_module
-from lexis._vendor.ossie import OssieDialect
 from lexis.parser import parse_ossie_yaml
 from lexis.resolved_model import ResolvedModel
 from lexis_api.config import settings
@@ -36,7 +35,6 @@ from lexis_api.connection_runtime import emitter_for_connection_type, open_conne
 from lexis_api.db import SessionLocal
 from lexis_api.deps import find_connection_or_404, find_model_or_404, find_user_or_401
 from lexis_api.mcp_workspace import build_workspace_server
-from lexis_api.query_runtime import run_metric_query as run_metric_query_generic
 
 
 class _MCPModelEndpoint:
@@ -70,13 +68,19 @@ class _MCPModelEndpoint:
             model = ResolvedModel.build(document.semantic_model[0])
             emitter = emitter_for_connection_type(conn.type)
 
-            def execute(metric: str, group_by: list[str] | None) -> dict:
-                metric_obj = model.metrics[metric]
-                metric_expr = model.resolve_expression(metric_obj.expression, OssieDialect.ANSI_SQL)
-                referenced = set(model.referenced_datasets(metric_expr))
-                referenced |= {ref.split(".", 1)[0] for ref in (group_by or [])}
+            def execute(
+                metric: str,
+                group_by: list[str] | None,
+                time_grain: str | None = None,
+                time_field: str | None = None,
+            ) -> dict:
+                referenced = mcp_server_module.query_datasets(
+                    model, metric, group_by, time_grain, time_field
+                )
                 with open_connection(conn, model, referenced) as con:
-                    return run_metric_query_generic(con, emitter, model, metric, group_by)
+                    return mcp_server_module.run_metric_or_timeseries(
+                        con, emitter, model, metric, group_by, time_grain, time_field
+                    )
 
             server = mcp_server_module.build_server(model, execute, name=model.semantic_model.name)
             session_manager = StreamableHTTPSessionManager(app=server, stateless=True, json_response=True)

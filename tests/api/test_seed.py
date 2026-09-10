@@ -42,7 +42,7 @@ def test_seed_sample_models_is_idempotent():
     assert db.query(SemanticModelRecord).count() == len(_EXPECTED_MODEL_NAMES)
 
 
-def test_seed_sample_models_skips_if_models_already_exist():
+def test_seed_sample_models_does_not_add_samples_to_a_non_empty_workspace():
     db = _fresh_session()
     seed_default_users(db)
     db.add(SemanticModelRecord(name="pre-existing", owner_id=1, raw_yaml="version: '0.1.1'\nsemantic_model: []"))
@@ -52,6 +52,37 @@ def test_seed_sample_models_skips_if_models_already_exist():
 
     assert db.query(SemanticModelRecord).count() == 1
     assert db.query(SemanticModelRecord).first().name == "pre-existing"
+
+
+def test_seed_sample_models_refreshes_a_stale_bundled_model():
+    db = _fresh_session()
+    seed_default_users(db)
+    seed_sample_models(db)
+
+    # simulate an older packaged version that landed on the volume first
+    stale = db.query(SemanticModelRecord).filter_by(name="retail_analytics").one()
+    packaged_yaml = stale.raw_yaml
+    stale.raw_yaml = packaged_yaml.replace("datatype: Date", "# datatype removed")
+    db.commit()
+
+    seed_sample_models(db)
+
+    refreshed = db.query(SemanticModelRecord).filter_by(name="retail_analytics").one()
+    assert refreshed.raw_yaml == packaged_yaml
+    assert db.query(SemanticModelRecord).count() == len(_EXPECTED_MODEL_NAMES)
+
+
+def test_seed_sample_models_does_not_resurrect_a_deleted_sample():
+    db = _fresh_session()
+    seed_default_users(db)
+    seed_sample_models(db)
+    db.query(SemanticModelRecord).filter_by(name="retail_analytics").delete()
+    db.commit()
+
+    seed_sample_models(db)
+
+    names = {r.name for r in db.query(SemanticModelRecord).all()}
+    assert names == {"tpcds_retail_model"}
 
 
 def test_seed_default_users_still_idempotent_alongside_sample_models():

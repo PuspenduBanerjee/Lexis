@@ -153,6 +153,7 @@ semantic_model:
                 - dialect: ANSI_SQL
                   expression: d_date
             description: Actual date value
+            datatype: Date
             dimension:
               is_time: true
             ai_context:

@@ -7,7 +7,7 @@ understand (Cube.js schema, dbt-core Ossie documents, MCP tool manifests grounde
 `ai_context`).
 
 Two ways to use it: a `lexis` CLI/library, and a web UI (FastAPI + React) with a
-persisted multi-model workspace, role-based access, and live DuckDB query execution.
+persisted multi-model workspace, role-based access, and live semantic query execution.
 
 See [docs/architecture-plan.md](docs/architecture-plan.md) for the full architecture
 writeup and design rationale.

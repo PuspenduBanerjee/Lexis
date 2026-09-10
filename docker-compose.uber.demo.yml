@@ -1,0 +1,21 @@
+# Demo overlay for docker-compose.uber.yml. Layer it on top:
+#
+#   docker compose -f docker-compose.uber.yml -f docker-compose.uber.demo.yml up -d --build
+#   podman compose -f docker-compose.uber.yml -f docker-compose.uber.demo.yml up -d --build
+#
+# Same effect as docker-compose.demo.yml, but for the single-container image: on
+# startup the app writes the bundled demo datasets to real .duckdb files and
+# registers a `duckdb_file` connection for each ("tpcds-demo", "retail-demo"), so
+# the Run tab and the MCP endpoint work with no manual `curl`. LEXIS_DEMO_DATA_DIR
+# points at /data/demo (on the lexis-data volume) so the .duckdb files persist
+# across restarts instead of being regenerated each boot.
+#
+# The 3 demo users (admin / editor1 / viewer1) and the two sample models are
+# seeded unconditionally by every image - this overlay only adds the connections.
+#
+# Do not use this overlay for a real deployment - it re-seeds demo data on every boot.
+services:
+  lexis-uber:
+    environment:
+      LEXIS_DEV_SETUP_DEMO: "1"
+      LEXIS_DEMO_DATA_DIR: /data/demo

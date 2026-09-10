@@ -314,8 +314,16 @@ podman compose -f docker-compose-ghcr.yml -f docker-compose.demo.yml up -d      
 To build the images without compose (e.g. for pushing to a registry):
 
 ```bash
-./scripts/docker-build.sh [tag]   # defaults to "latest"; builds lexis-api and lexis-web
+./scripts/docker-build.sh                # lexis-api + lexis-web, tag :latest
+./scripts/docker-build.sh 0.3.0          # ... tagged :0.3.0
+./scripts/docker-build.sh --type uber    # the single-container lexis-uber image instead
+./scripts/docker-build.sh --type all     # all three
+./scripts/docker-build.sh --help         # full usage
 ```
+
+The **`uber`** build (`docker/uber.Dockerfile`, `docker-compose.uber.yml`) bundles
+the SPA and the API in one image on one port — no nginx. Use the default split
+build when you want to scale or deploy the UI and API separately.
 
 Both containers currently run as root and there's no HTTPS/reverse-auth in front of
 them - fine for local/trusted-network use, but harden before exposing publicly.
@@ -763,8 +771,9 @@ frontend/                Vite + React + TypeScript SPA
 tests/                  core library tests (fixtures under tests/fixtures/)
 tests/api/              backend API tests
 docs/architecture-plan.md   architecture decisions and design rationale
-docker/                 Dockerfiles + nginx config for the two images (see docker-compose.yml)
-scripts/docker-build.sh   builds both images directly with `docker build`, no compose needed
+docker/                 Dockerfiles + nginx config (split: backend/frontend; single: uber)
+scripts/docker-build.sh   builds images directly with `docker build` (--type split|uber|all), no compose
+docker-compose.uber.yml   single-container variant (SPA + API in one image; + .uber.demo.yml overlay)
 third_party/ossie/      git submodule: upstream Ossie spec/schema/converters docs/examples
 ```
 

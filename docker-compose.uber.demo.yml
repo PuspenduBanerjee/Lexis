@@ -1,7 +1,7 @@
-# Demo overlay for docker-compose.allinone.yml. Layer it on top:
+# Demo overlay for docker-compose.uber.yml. Layer it on top:
 #
-#   docker compose -f docker-compose.allinone.yml -f docker-compose.allinone.demo.yml up -d --build
-#   podman compose -f docker-compose.allinone.yml -f docker-compose.allinone.demo.yml up -d --build
+#   docker compose -f docker-compose.uber.yml -f docker-compose.uber.demo.yml up -d --build
+#   podman compose -f docker-compose.uber.yml -f docker-compose.uber.demo.yml up -d --build
 #
 # Same effect as docker-compose.demo.yml, but for the single-container image: on
 # startup the app writes the bundled demo datasets to real .duckdb files and
@@ -15,7 +15,7 @@
 #
 # Do not use this overlay for a real deployment - it re-seeds demo data on every boot.
 services:
-  lexis:
+  lexis-uber:
     environment:
       LEXIS_DEV_SETUP_DEMO: "1"
       LEXIS_DEMO_DATA_DIR: /data/demo

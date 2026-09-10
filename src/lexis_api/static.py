@@ -4,7 +4,7 @@ counterpart to dev_proxy.py: dev_proxy forwards to the live Vite dev server,
 this serves Vite's static `dist/` output directly.
 
 Enabled only when `settings.frontend_dist_dir` points at a directory containing
-`index.html` (see config.py / docker/allinone.Dockerfile); unset by default, so
+`index.html` (see config.py / docker/uber.Dockerfile); unset by default, so
 a plain `pip install "lexis-cli[api]"` run and the split api+nginx compose setup
 (docker/nginx.conf serves the frontend there) are both unaffected.
 

@@ -33,9 +33,9 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -e ".[api]"
 
 COPY src ./src
 
-COPY docker/allinone-entrypoint.sh /usr/local/bin/allinone-entrypoint.sh
+COPY docker/uber-entrypoint.sh /usr/local/bin/uber-entrypoint.sh
 COPY docker/healthcheck.py /usr/local/bin/lexis-healthcheck.py
-RUN chmod +x /usr/local/bin/allinone-entrypoint.sh
+RUN chmod +x /usr/local/bin/uber-entrypoint.sh
 
 # Vite build output, served by the app from `/` (see src/lexis_api/static.py).
 COPY --from=web /web/dist /app/frontend-dist
@@ -53,12 +53,12 @@ RUN useradd --system --create-home --uid 1000 app \
 VOLUME /data
 USER app
 
-LABEL org.opencontainers.image.title="lexis" \
-      org.opencontainers.image.description="Lexis - single image bundling the web UI and the FastAPI/MCP backend" \
+LABEL org.opencontainers.image.title="lexis-uber" \
+      org.opencontainers.image.description="Lexis (uber) - single image bundling the web UI and the FastAPI/MCP backend" \
       org.opencontainers.image.source="https://github.com/PuspenduBanerjee/Lexis" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD ["python", "/usr/local/bin/lexis-healthcheck.py"]
-ENTRYPOINT ["allinone-entrypoint.sh"]
+ENTRYPOINT ["uber-entrypoint.sh"]

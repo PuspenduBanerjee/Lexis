@@ -16,8 +16,9 @@ import anyio
 from mcp import types
 from mcp.server.lowlevel import Server
 
+from lexis._vendor.ossie import OssieDialect
 from lexis.resolved_model import ResolvedModel
-from lexis.transpilers.mcp import build_metric_tool_specs
+from lexis.transpilers.mcp import build_metric_tool_specs, model_instructions, resolve_time_axis
 from lexis.transpilers.sql.base import SqlDialectEmitter
 
 # A metric result has no natural row limit of its own (it's an aggregate query, not a
@@ -45,6 +46,10 @@ def run_metric_query(
     SQLAlchemy) dependency chain; both copies are small enough that the duplication
     is cheaper than relocating that module."""
     sql = emitter.emit_metric_query(model, metric, group_by=group_by)
+    return _run(con, sql)
+
+
+def _run(con: Any, sql: str) -> dict:
     cursor = con.cursor()
     cursor.execute(sql)
     columns = [d[0] for d in cursor.description]
@@ -57,14 +62,75 @@ def run_metric_query(
     }
 
 
-ExecuteMetric = Callable[[str, list[str] | None], dict]
+def run_timeseries_query(
+    con: Any,
+    emitter: SqlDialectEmitter,
+    model: ResolvedModel,
+    metric: str,
+    time_dataset: str,
+    time_field: str,
+    grain: str,
+) -> dict:
+    """`metric` bucketed by `DATE_TRUNC(grain, time_dataset.time_field)`, one row per
+    period. Core mirror of `lexis_api.query_runtime.run_timeseries_query` (drill-down
+    filters omitted - the MCP tool doesn't expose them)."""
+    sql = emitter.emit_timeseries_query(model, metric, time_dataset, time_field, grain)
+    return _run(con, sql)
+
+
+def query_datasets(
+    model: ResolvedModel,
+    metric: str,
+    group_by: list[str] | None,
+    time_grain: str | None = None,
+    time_field: str | None = None,
+) -> set[str]:
+    """Every dataset a `run_metric_or_timeseries` call touches - the caller passes
+    this to its connection opener so a duckdb_file connection ATTACHes the right
+    files first."""
+    metric_expr = model.resolve_expression(model.metrics[metric].expression, OssieDialect.ANSI_SQL)
+    datasets = set(model.referenced_datasets(metric_expr))
+    if time_grain:
+        datasets.add(resolve_time_axis(model, time_field)[0])
+    else:
+        datasets |= {ref.split(".", 1)[0] for ref in (group_by or [])}
+    return datasets
+
+
+def run_metric_or_timeseries(
+    con: Any,
+    emitter: SqlDialectEmitter,
+    model: ResolvedModel,
+    metric: str,
+    group_by: list[str] | None,
+    time_grain: str | None = None,
+    time_field: str | None = None,
+) -> dict:
+    """Dispatch a `query_<metric>` tool call: a `DATE_TRUNC`-bucketed timeseries when
+    `time_grain` is set, otherwise a plain (optionally grouped) total. Raises
+    `ValueError` (a clean MCP tool error) on an unsupported combination."""
+    if time_grain:
+        if group_by:
+            raise ValueError("time_grain and group_by cannot be combined in one query yet")
+        time_dataset, column = resolve_time_axis(model, time_field)
+        return run_timeseries_query(con, emitter, model, metric, time_dataset, column, time_grain)
+    return run_metric_query(con, emitter, model, metric, group_by)
+
+
+# execute(metric, group_by, time_grain, time_field) -> result dict. `time_grain`
+# (day/week/month/quarter/year) buckets the metric into consecutive periods via the
+# emitter's timeseries query instead of a single total; `time_field` picks the date
+# axis (see lexis.transpilers.mcp.resolve_time_axis). Both None for a plain total.
+ExecuteMetric = Callable[[str, list[str] | None, str | None, str | None], dict]
 
 
 def build_server(model: ResolvedModel, execute: ExecuteMetric, name: str | None = None) -> Server:
     """Build an MCP `Server` with one `query_<metric>` tool per Ossie metric, dispatching
-    tool calls to `execute(metric_name, group_by)`."""
+    tool calls to `execute(metric_name, group_by, time_grain, time_field)`."""
     tools = [types.Tool(**spec) for spec in build_metric_tool_specs(model)]
-    server: Server = Server(name or model.semantic_model.name)
+    server: Server = Server(
+        name or model.semantic_model.name, instructions=model_instructions(model) or None
+    )
 
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:
@@ -81,6 +147,12 @@ def build_server(model: ResolvedModel, execute: ExecuteMetric, name: str | None 
         # doesn't stall the event loop driving the MCP session (matters most for the
         # HTTP transport, which - unlike a normal FastAPI route - isn't already
         # running inside FastAPI's own sync-endpoint threadpool).
-        return await anyio.to_thread.run_sync(execute, metric, arguments.get("group_by") or None)
+        return await anyio.to_thread.run_sync(
+            execute,
+            metric,
+            arguments.get("group_by") or None,
+            arguments.get("time_grain"),
+            arguments.get("time_field"),
+        )
 
     return server

@@ -229,9 +229,9 @@ the backend also serves the UI) preset — one command for a demo/tunnel setup.
 
 Logs go to `.dev/api.log` / `.dev/web.log`; override ports with `LEXIS_API_PORT`/
 `LEXIS_WEB_PORT` env vars. The API writes one line per request to its log
-(`METHOD /path -> status`), including the `X-User-Email` / `X-User-Id` headers — if
-a tunnel's OAuth traffic policy injects them from the authenticated identity,
-they show up here; `-` otherwise.
+(`METHOD /path -> status`), including the `X-User-Email` / `X-User-Id` /
+`X-User-Name` headers — if a tunnel's OAuth traffic policy injects them from the
+authenticated identity, they show up here; `-` otherwise.
 
 Open `http://localhost:5173`, use the "Acting as" switcher in the header to pick a
 role, paste an Ossie YAML document (e.g. `tests/fixtures/tpcds_semantic_model.yaml`) to
@@ -457,6 +457,14 @@ results back, Lexis can also serve a model as a **live** MCP server, one
 `query_<metric>` tool per metric, resolved against the demo dataset, a local DuckDB
 file, or Snowflake.
 
+Each `query_<metric>` tool takes `group_by` (dimension refs, constrained to an enum)
+**or** `time_grain` (`day`/`week`/`month`/`quarter`/`year`) to get a period-by-period
+trend instead of a single total — e.g. "sales by week". `time_grain` buckets are ISO
+8601 periods (weeks start Monday); a model whose calendar differs (e.g. a US retail
+Sunday–Saturday week) says so in its `ai_context`, surfaced to the client as the MCP
+server's `instructions` and in `list_metrics`. `time_field` picks the date axis when
+a model has more than one.
+
 There are three ways to wire a client up to it, depending on what you're doing:
 
 | # | Approach | Reaches localhost? | Needs public exposure? |
@@ -557,9 +565,10 @@ instead:
 - `list_models` - every model in the workspace (id, name, description)
 - `list_connections` - every connection (id, name, type)
 - `list_metrics(model_id)` - a model's metrics, each with its description and valid
-  `group_by` references (the same data the per-model endpoint bakes into each
+  `group_by` references, plus the model's `time_fields` / `time_grains` and any
+  model-level `instructions` (the same data the per-model endpoint bakes into each
   `query_<metric>` tool's schema, just returned as data here instead)
-- `query_metric(model_id, metric, connection_id, group_by?)` - runs it
+- `query_metric(model_id, metric, connection_id, group_by? | time_grain? + time_field?)` - runs it
 
 The trade-off: the per-model endpoint's one-governed-tool-per-metric design (a
 distinct `query_<metric>` tool, `group_by` constrained to a real enum in the JSON

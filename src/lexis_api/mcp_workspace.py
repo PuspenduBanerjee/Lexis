@@ -23,14 +23,18 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from sqlalchemy.orm import Session
 
-from lexis._vendor.ossie import OssieDialect
+from lexis.mcp_server import query_datasets, run_metric_or_timeseries
 from lexis.parser import parse_ossie_yaml
 from lexis.resolved_model import ResolvedModel
-from lexis.transpilers.mcp import build_metric_tool_specs
+from lexis.transpilers.mcp import (
+    TIME_GRAINS,
+    build_metric_tool_specs,
+    model_instructions,
+    time_axis_refs,
+)
 from lexis_api.connection_runtime import emitter_for_connection_type, open_connection
 from lexis_api.deps import find_connection_or_404, find_model_or_404
 from lexis_api.models import Connection, SemanticModelRecord
-from lexis_api.query_runtime import run_metric_query
 
 _TOOLS = [
     types.Tool(
@@ -59,9 +63,11 @@ _TOOLS = [
     types.Tool(
         name="query_metric",
         description=(
-            "Run a metric query against a specific model and connection, optionally "
-            "grouped by one or more dimension references. Call list_models, "
-            "list_connections, and list_metrics first to find valid ids/names."
+            "Run a metric query against a specific model and connection: either a "
+            "single total (optionally grouped by dimension references) or, with "
+            "time_grain, one row per consecutive time period. Call list_models, "
+            "list_connections, and list_metrics first to find valid ids/names, valid "
+            "group_by / time_field values, and any model-specific week conventions."
         ),
         inputSchema={
             "type": "object",
@@ -73,6 +79,22 @@ _TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "dataset.field references to group by - see list_metrics for valid ones",
+                },
+                "time_grain": {
+                    "type": "string",
+                    "enum": TIME_GRAINS,
+                    "description": (
+                        "Bucket the metric into consecutive periods instead of one total "
+                        "(e.g. 'week'). ISO 8601 periods, weeks start Monday unless the "
+                        "model's instructions say otherwise. Cannot be combined with group_by."
+                    ),
+                },
+                "time_field": {
+                    "type": "string",
+                    "description": (
+                        "dataset.field date axis for time_grain - see list_metrics "
+                        "(time_fields); optional when the model has exactly one"
+                    ),
                 },
             },
             "required": ["model_id", "metric", "connection_id"],
@@ -110,27 +132,44 @@ def _list_metrics(db: Session, model_id: int) -> dict[str, Any]:
         metrics.append(
             {"name": spec["name"].removeprefix("query_"), "description": spec["description"], "group_by": group_by}
         )
-    return {"metrics": metrics}
+    result: dict[str, Any] = {"metrics": metrics, "time_grains": TIME_GRAINS, "time_fields": time_axis_refs(model)}
+    instructions = model_instructions(model)
+    if instructions:
+        result["instructions"] = instructions
+    return result
 
 
-def _query_metric(db: Session, model_id: int, metric: str, connection_id: int, group_by: list[str] | None) -> dict:
+def _query_metric(
+    db: Session,
+    model_id: int,
+    metric: str,
+    connection_id: int,
+    group_by: list[str] | None,
+    time_grain: str | None = None,
+    time_field: str | None = None,
+) -> dict:
     _, model = _resolved_model(db, model_id)
     if metric not in model.metrics:
         raise ValueError(f"unknown metric {metric!r} for model {model_id}")
     conn = find_connection_or_404(db, connection_id)
     emitter = emitter_for_connection_type(conn.type)
-    metric_obj = model.metrics[metric]
-    metric_expr = model.resolve_expression(metric_obj.expression, OssieDialect.ANSI_SQL)
-    referenced = set(model.referenced_datasets(metric_expr))
-    referenced |= {ref.split(".", 1)[0] for ref in (group_by or [])}
+    referenced = query_datasets(model, metric, group_by, time_grain, time_field)
     with open_connection(conn, model, referenced) as con:
-        return run_metric_query(con, emitter, model, metric, group_by)
+        return run_metric_or_timeseries(con, emitter, model, metric, group_by, time_grain, time_field)
 
 
 def build_workspace_server(db: Session) -> Server:
     """Build the workspace-wide MCP `Server`. `db` is the caller's request-scoped
     session (see `routers/mcp.py`) - every tool call in this session shares it."""
-    server: Server = Server("lexis-workspace")
+    server: Server = Server(
+        "lexis-workspace",
+        instructions=(
+            "Query governed semantic models. Flow: list_models -> list_connections -> "
+            "list_metrics(model_id) -> query_metric. list_metrics returns each model's "
+            "valid group_by refs, time_fields for time_grain queries, and any "
+            "model-specific instructions (e.g. a non-ISO retail week)."
+        ),
+    )
 
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:
@@ -152,6 +191,8 @@ def build_workspace_server(db: Session) -> Server:
                     arguments["metric"],
                     arguments["connection_id"],
                     arguments.get("group_by") or None,
+                    arguments.get("time_grain"),
+                    arguments.get("time_field"),
                 )
             raise ValueError(f"unknown tool {name!r}")
 

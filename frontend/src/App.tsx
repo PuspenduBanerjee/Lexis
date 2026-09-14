@@ -5,6 +5,8 @@ import { UserSwitcher } from "./components/UserSwitcher";
 import { ModelListPage } from "./pages/ModelListPage";
 import { ModelDetailPage } from "./pages/ModelDetailPage";
 import { ConnectionsPage } from "./pages/ConnectionsPage";
+import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
+import { TermsOfServicePage } from "./pages/TermsOfServicePage";
 
 const queryClient = new QueryClient();
 
@@ -30,8 +32,16 @@ export default function App() {
               <Route path="/" element={<ModelListPage />} />
               <Route path="/models/:id" element={<ModelDetailPage />} />
               <Route path="/connections" element={<ConnectionsPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsOfServicePage />} />
             </Routes>
           </main>
+          <footer className="app-footer">
+            <div className="page-container row">
+              <Link to="/privacy">Privacy Policy</Link>
+              <Link to="/terms">Terms of Service</Link>
+            </div>
+          </footer>
         </BrowserRouter>
       </UserProvider>
     </QueryClientProvider>

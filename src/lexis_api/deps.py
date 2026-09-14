@@ -1,7 +1,7 @@
-"""Auth stub + RBAC dependencies.
+"""Google auth (via a trusted edge/tunnel) + dev stub + RBAC dependencies.
 
-`get_current_user` is the single seam meant to be swapped for real auth later —
-every route depends on it by signature only, never inspects headers directly.
+`get_current_user` is the single seam every route depends on by signature only,
+never inspecting headers directly - see it for how the auth paths are ordered.
 """
 
 from fastapi import Depends, Header, HTTPException
@@ -22,10 +22,57 @@ def find_user_or_401(db: Session, user_id: int) -> User:
     return user
 
 
+def find_or_create_google_user(db: Session, email: str, display_name: str | None) -> User:
+    """Look up (or, on first sign-in, auto-provision as `Role.VIEWER`) the user for a
+    Google-authenticated identity. `email` is trusted here purely because it arrived
+    as one of the headers a tunnel's edge auth injects - `X-User-Email` (ngrok's
+    `oauth` traffic-policy action) or `Cf-Access-Authenticated-User-Email` (Cloudflare
+    Access in front of a `cloudflared` tunnel) - see `get_current_user`. Both tunnel
+    providers strip any client-supplied copy of their own header before adding the
+    verified one, so this is only safe when the app itself isn't otherwise directly
+    reachable (no port published alongside the tunnel) - never wire a client-facing
+    deployment to accept either header straight from a browser. An admin can promote
+    the new user's role afterward like any other.
+    """
+    user = db.query(User).filter(User.email == email).first()
+    if user is not None:
+        return user
+
+    # `username` is unique; a Google display name (or the email, as fallback) can
+    # collide with a seeded dev user or an earlier Google sign-in, so disambiguate.
+    base_username = display_name or email
+    username = base_username
+    suffix = 1
+    while db.query(User).filter(User.username == username).first() is not None:
+        suffix += 1
+        username = f"{base_username} ({suffix})"
+
+    user = User(username=username, email=email, role=Role.VIEWER)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def get_current_user(
+    x_user_email: str | None = Header(default=None, alias="X-User-Email"),
+    x_user_name: str | None = Header(default=None, alias="X-User-Name"),
+    cf_access_email: str | None = Header(default=None, alias="Cf-Access-Authenticated-User-Email"),
     x_account_id: int | None = Header(default=None, alias="X-Account-Id"),
     db: Session = Depends(get_db),
 ) -> User:
+    # Google identity always wins when present, regardless of `dev_auth_header_enabled` -
+    # it's the real, tunnel-verified signal; the account-id header below is just a stub.
+    # `x_user_email` (ngrok) is checked first only as an arbitrary tie-break - a
+    # deployment realistically sits behind exactly one tunnel, so both are never set
+    # on the same request. Cloudflare Access has no equivalent "display name" header,
+    # so `display_name` stays None (falls back to the email as the username) for it.
+    google_email = x_user_email or cf_access_email
+    if google_email:
+        display_name = x_user_name if x_user_email else None
+        return find_or_create_google_user(db, email=google_email, display_name=display_name)
+    if not settings.dev_auth_header_enabled:
+        raise HTTPException(status_code=401, detail="authentication required")
     uid = x_account_id if x_account_id is not None else settings.default_user_id
     return find_user_or_401(db, uid)
 

@@ -192,10 +192,22 @@ uvicorn lexis_api.main:app --reload --port 8000
 ```
 
 Startup automatically seeds 3 demo users (`admin`, `editor1`, `viewer1` — ids 1/2/3,
-roles Admin/Editor/Viewer). There's no login screen yet: requests are attributed to a
-user via an `X-Account-Id` header (defaults to `1`/admin if omitted) — a deliberate stub,
-see [docs/architecture-plan.md](docs/architecture-plan.md) for why and what a real
-auth swap-in looks like.
+roles Admin/Editor/Viewer). Locally there's no login screen: requests are attributed to
+a user via an `X-Account-Id` header (defaults to `1`/admin if omitted), driven by the
+"Acting as" switcher in the UI header — a deliberate dev-only stub (`lexis_api/deps.py`).
+
+Real sign-in is Google-based, but happens entirely at the edge rather than inside this
+app: put a tunnel with Google-backed edge auth in front of it (see "Before you expose
+it" below - both ngrok's `oauth` traffic-policy action and Cloudflare Access in front of
+a `cloudflared` tunnel work) and it authenticates the browser against Google, then
+forwards each request with an identity header - `X-User-Email` (+ `X-User-Name`) for
+ngrok, `Cf-Access-Authenticated-User-Email` for Cloudflare. `deps.get_current_user`
+treats either header as authoritative whenever it's present — auto-provisioning a
+`viewer`-role user the first time it sees a given Google account — and it always wins
+over the `X-Account-Id` stub, so the two coexist: the dev stub for local iteration,
+Google auth for anything reachable by someone else. Once a deployment is *only* ever
+reached through such a tunnel, set `LEXIS_DEV_AUTH_HEADER_ENABLED=0` (env var) to turn
+the spoofable `X-Account-Id` stub off entirely — see `lexis_api/config.py`.
 
 **Frontend** (in a second terminal):
 
@@ -319,6 +331,31 @@ To build the images without compose (e.g. for pushing to a registry):
 ./scripts/docker-build.sh --type uber    # the single-container lexis-uber image instead
 ./scripts/docker-build.sh --type all     # all three
 ./scripts/docker-build.sh --help         # full usage
+```
+
+Two more options, combinable with any of the above:
+
+- **`--platform PLATFORM`** — cross-build for another architecture, e.g.
+  `--platform linux/arm64` (needs cross-arch emulation registered - see `--help` for
+  the one-time setup per engine). When you don't also pass an explicit tag, building a
+  single `linux/<arch>` platform this way tags the image `<arch>-latest` instead of
+  plain `latest` (`linux/arm64` → `arm64-latest`), so an arm64 and an amd64 build of
+  the same version don't overwrite each other's `:latest`.
+- **`--prefix PREFIX`** (or the `IMAGE_PREFIX` env var) — prepend a registry
+  namespace to every image name, so the result can be `docker push`ed straight to a
+  registry with no separate retag step, e.g. `--prefix puspendubanerjee/` builds
+  `puspendubanerjee/lexis-api` instead of `lexis-api` (include the trailing `/`
+  yourself; works for any registry, e.g. `--prefix ghcr.io/you/`).
+
+```bash
+./scripts/docker-build.sh --platform linux/arm64 --type uber
+# -> lexis-uber:arm64-latest
+
+./scripts/docker-build.sh --prefix puspendubanerjee/ --type all
+# -> puspendubanerjee/lexis-api:latest, puspendubanerjee/lexis-web:latest, puspendubanerjee/lexis-uber:latest
+
+./scripts/docker-build.sh --prefix puspendubanerjee/ --platform linux/arm64 --type uber
+docker push puspendubanerjee/lexis-uber:arm64-latest
 ```
 
 The **`uber`** build (`docker/uber.Dockerfile`, `docker-compose.uber.yml`) bundles
@@ -703,11 +740,70 @@ itself to Vite as `localhost:5173` regardless of the tunnel's public hostname.
 
 **Before you expose it**: `X-Account-Id` is a development-only auth stub in this codebase
 (see `lexis_api/deps.py`) — anyone who reaches the tunnel URL can act as *any* user id
-just by setting that header themselves, no password or token required. Only run the
-tunnel while you're actively testing against your own machine, don't point it at a
-database with real data, and kill it (`pkill cloudflared`, since the command above
-backgrounds it) as soon as you're done — the hostname is random and will change on
-every restart anyway, so there's no persistent URL to protect.
+just by setting that header themselves, no password or token required, **unless** the
+tunnel has Google-backed edge auth in front of it. Both ngrok and Cloudflare (the two
+tunnels this README covers) support that, with one practical difference:
+
+- **ngrok** — the [`oauth` traffic-policy action](https://ngrok.com/docs/traffic-policy/actions/oauth/)
+  can authenticate against Google with *zero* Google-side setup: omit
+  `client_id`/`client_secret` from the `google` provider config and ngrok authenticates
+  visitors through its own managed Google OAuth app instead of one you'd have to
+  register yourself.
+
+  ```yaml
+  # traffic-policy.yaml
+  on_http_request:
+    - actions:
+        - type: oauth
+          config:
+            provider: google
+  ```
+
+  ```bash
+  ngrok http 8000 --traffic-policy-file traffic-policy.yaml
+  ```
+
+  It injects `X-User-Email` (+ `X-User-Name`) on requests that pass.
+
+- **Cloudflare Access** (in front of the `cloudflared` tunnel above) — needs a (free)
+  Zero Trust account, and unlike ngrok there's no shared Google app: register your own
+  OAuth Client ID/Secret in Google Cloud Console first.
+  1. Zero Trust dashboard → **Settings → Authentication → Login methods → Add → Google**,
+     paste that Client ID/Secret (redirect URI Google needs:
+     `https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback`).
+  2. **Access → Applications → Add an application → Self-hosted**, set the application
+     domain to your tunnel's public hostname, add a policy that allows the
+     emails/domain you want signed in with Google as the identity provider, save.
+  3. Run `cloudflared` as usual (see above) — Access enforces the policy at
+     Cloudflare's edge, before any request reaches `cloudflared` or this app, and
+     injects `Cf-Access-Authenticated-User-Email` on requests that pass.
+
+When either header is present the backend authenticates with that real Google identity
+instead and ignores `X-Account-Id` entirely (see the Quickstart section above and
+`lexis_api/deps.get_current_user`) — so a tunnel fronted by either of these is safe to
+leave up. Without one, treat the exposure exactly as before: only run the tunnel while
+you're actively testing against your own machine, don't point it at a database with real
+data, and kill it (`pkill cloudflared`, since the command above backgrounds it) as soon
+as you're done — the hostname is random and will change on every restart anyway, so
+there's no persistent URL to protect.
+
+**Registering the Google OAuth client for Cloudflare Access**: when you create the OAuth
+Client ID in Google Cloud Console (APIs & Services → Credentials → OAuth consent
+screen), it'll flag your app's homepage as failing to explain the app's purpose, having an
+insufficient privacy policy, and sitting behind a login page — all because Access gates the
+*entire* origin, so Google's checker can't see anything. The app ships `/privacy` and
+`/terms` pages (`frontend/src/pages/PrivacyPolicyPage.tsx` /
+`TermsOfServicePage.tsx`, linked from the footer) for exactly this; point the consent
+screen's "Privacy policy" field at `<your-domain>/privacy`. To let Google's checker (and
+anyone else) actually reach it without signing in, add a second, narrower Access
+application scoped to just that path with a **Bypass** policy (Access → Applications →
+Add an application → Self-hosted, hostname `<your-domain>`, path `/privacy`, one policy
+with action Bypass) — same for `/terms` if you also link it as the "Terms of Service"
+field. For most personal/small-team deployments it's simpler to skip verification
+entirely instead: leave the consent screen's **Publishing status** at **Testing** and add
+your own Google account(s) under **Audience → Test users** — sign-in works immediately,
+with none of the above required, since verification review only applies when publishing
+to "In production."
 
 ### Connecting Claude's remote connector to it (approach 3 only)
 
@@ -781,7 +877,8 @@ tests/                  core library tests (fixtures under tests/fixtures/)
 tests/api/              backend API tests
 docs/architecture-plan.md   architecture decisions and design rationale
 docker/                 Dockerfiles + nginx config (split: backend/frontend; single: uber)
-scripts/docker-build.sh   builds images directly with `docker build` (--type split|uber|all), no compose
+scripts/docker-build.sh   builds images directly with `docker build` (--type split|uber|all,
+                        --platform, --prefix), no compose
 docker-compose.uber.yml   single-container variant (SPA + API in one image; + .uber.demo.yml overlay)
 third_party/ossie/      git submodule: upstream Ossie spec/schema/converters docs/examples
 ```

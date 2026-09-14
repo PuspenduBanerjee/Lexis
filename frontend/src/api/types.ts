@@ -7,6 +7,10 @@ export interface UserOut {
   id: number;
   username: string;
   role: Role;
+  // Set only for a Google-authenticated user (see lexis_api/deps.py); null for the
+  // seeded dev-stub users. Its presence on `/api/users/me` is what UserContext uses
+  // to tell a real signed-in identity apart from the local dev "Acting as" switcher.
+  email: string | null;
 }
 
 export interface FieldOut {

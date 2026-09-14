@@ -36,6 +36,10 @@ class UserOut(BaseModel):
     id: int
     username: str
     role: str
+    # Set only for a Google-authenticated user (see deps.find_or_create_google_user);
+    # null for the seeded dev-stub users. The frontend treats its presence on
+    # `/api/users/me` as "this is a real signed-in identity, not the dev switcher".
+    email: str | None = None
 
 
 class FieldOut(BaseModel):

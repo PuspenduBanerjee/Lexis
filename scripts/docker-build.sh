@@ -11,7 +11,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/docker-build.sh [--type TYPE] [TAG]
+Usage: scripts/docker-build.sh [--type TYPE] [--platform PLATFORM] [--prefix PREFIX] [TAG]
 
 Build types (--type / -t):
   split   (default)  lexis-api + lexis-web  - API and the nginx/SPA frontend as
@@ -22,20 +22,46 @@ Build types (--type / -t):
   all                every image above
 
 Arguments:
-  TAG                image tag to apply (default: latest)
+  TAG                image tag to apply (default: "latest", or "<arch>-latest" when
+                     --platform is a single linux/<arch> platform, e.g. building
+                     --platform linux/arm64 with no TAG tags it arm64-latest)
 
 Options:
-  -t, --type TYPE    which images to build: split | uber | all (default: split)
-  -h, --help         show this help and exit
+  -t, --type TYPE        which images to build: split | uber | all (default: split)
+  -p, --platform PLATFORM
+                          target platform, e.g. linux/arm64 or linux/amd64 (default:
+                          unset - the engine's own default, normally the host's
+                          platform). Passed straight through as `--platform` to
+                          `docker build`/`podman build`. Building for a platform other
+                          than the host's needs cross-arch emulation registered
+                          (Docker Desktop/Docker Engine with buildx: usually already
+                          set up; standalone: `docker run --privileged --rm
+                          tonistiigi/binfmt --install all`; Podman: `podman machine`
+                          on macOS handles it, native Linux needs qemu-user-static).
+                          Docker also requires the buildx builder (default since
+                          Docker 23) - the legacy builder rejects `--platform`.
+  --prefix PREFIX         prepended to every image name, e.g. `--prefix
+                          puspendubanerjee/` builds `puspendubanerjee/lexis-api`
+                          instead of `lexis-api` - so the result can be `docker push`ed
+                          straight to Docker Hub (or any registry: `--prefix
+                          ghcr.io/you/`) with no separate retagging step. Include
+                          the trailing `/` yourself; also settable via the
+                          IMAGE_PREFIX env var (the flag wins if both are given).
+  -h, --help              show this help and exit
 
 Environment:
   CONTAINER_ENGINE   docker | podman (auto-detected when only one is on PATH)
+  IMAGE_PREFIX       default for --prefix
 
 Examples:
   scripts/docker-build.sh                     # lexis-api + lexis-web, :latest
   scripts/docker-build.sh 0.3.0               # lexis-api + lexis-web, :0.3.0
   scripts/docker-build.sh --type uber         # lexis-uber, :latest
   scripts/docker-build.sh -t all 0.3.0        # every image, :0.3.0
+  scripts/docker-build.sh --platform linux/arm64 --type uber
+                                               # lexis-uber:arm64-latest
+  scripts/docker-build.sh --prefix puspendubanerjee/ --type all
+                                               # puspendubanerjee/lexis-api:latest, ...
   CONTAINER_ENGINE=podman scripts/docker-build.sh
 EOF
 }
@@ -43,7 +69,9 @@ EOF
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 BUILD_TYPE="split"
-TAG="latest"
+TAG=""
+PLATFORM=""
+IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 tag_set=false
 
 while [[ $# -gt 0 ]]; do
@@ -59,6 +87,24 @@ while [[ $# -gt 0 ]]; do
       ;;
     --type=*)
       BUILD_TYPE="${1#*=}"
+      shift
+      ;;
+    -p|--platform)
+      [[ $# -ge 2 ]] || { echo "error: $1 needs a value (e.g. linux/arm64)" >&2; exit 2; }
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#*=}"
+      shift
+      ;;
+    --prefix)
+      [[ $# -ge 2 ]] || { echo "error: $1 needs a value (e.g. puspendubanerjee/)" >&2; exit 2; }
+      IMAGE_PREFIX="$2"
+      shift 2
+      ;;
+    --prefix=*)
+      IMAGE_PREFIX="${1#*=}"
       shift
       ;;
     -*)
@@ -86,6 +132,18 @@ case "${BUILD_TYPE}" in
     ;;
 esac
 
+# Default tag: "latest", except a single-arch --platform with no explicit TAG gets
+# "<arch>-latest" instead (e.g. --platform linux/arm64 -> arm64-latest) so an
+# arm64 and an amd64 build of the same version don't clobber each other's :latest.
+# Skipped for a comma-separated multi-platform value (ambiguous which arch to name).
+if [[ "${tag_set}" == false ]]; then
+  TAG="latest"
+  if [[ -n "${PLATFORM}" && "${PLATFORM}" != *,* ]]; then
+    IFS='/' read -r _platform_os platform_arch _platform_variant <<< "${PLATFORM}"
+    [[ -n "${platform_arch}" ]] && TAG="${platform_arch}-latest"
+  fi
+fi
+
 if [[ -z "${CONTAINER_ENGINE:-}" ]]; then
   if command -v docker >/dev/null 2>&1; then
     CONTAINER_ENGINE=docker
@@ -100,9 +158,12 @@ fi
 built=()
 
 build_image() {
-  local image="$1" dockerfile="$2"
-  echo "Building ${image}:${TAG} with ${CONTAINER_ENGINE} (${dockerfile}) ..."
-  "${CONTAINER_ENGINE}" build -f "${dockerfile}" -t "${image}:${TAG}" .
+  local base_name="$1" dockerfile="$2"
+  local image="${IMAGE_PREFIX}${base_name}"
+  local -a platform_args=()
+  [[ -n "${PLATFORM}" ]] && platform_args=(--platform "${PLATFORM}")
+  echo "Building ${image}:${TAG} with ${CONTAINER_ENGINE} (${dockerfile})${PLATFORM:+, platform ${PLATFORM}} ..."
+  "${CONTAINER_ENGINE}" build "${platform_args[@]}" -f "${dockerfile}" -t "${image}:${TAG}" .
   built+=("${image}:${TAG}")
 }
 

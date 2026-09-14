@@ -789,21 +789,42 @@ there's no persistent URL to protect.
 
 **Registering the Google OAuth client for Cloudflare Access**: when you create the OAuth
 Client ID in Google Cloud Console (APIs & Services → Credentials → OAuth consent
-screen), it'll flag your app's homepage as failing to explain the app's purpose, having an
-insufficient privacy policy, and sitting behind a login page — all because Access gates the
-*entire* origin, so Google's checker can't see anything. The app ships `/privacy` and
-`/terms` pages (`frontend/src/pages/PrivacyPolicyPage.tsx` /
-`TermsOfServicePage.tsx`, linked from the footer) for exactly this; point the consent
-screen's "Privacy policy" field at `<your-domain>/privacy`. To let Google's checker (and
-anyone else) actually reach it without signing in, add a second, narrower Access
-application scoped to just that path with a **Bypass** policy (Access → Applications →
-Add an application → Self-hosted, hostname `<your-domain>`, path `/privacy`, one policy
-with action Bypass) — same for `/terms` if you also link it as the "Terms of Service"
-field. For most personal/small-team deployments it's simpler to skip verification
+screen), it'll flag your app's homepage as not explaining the app's purpose, having an
+insufficient privacy policy, and sitting behind a login page — all because Access gates
+the *entire* origin, so Google's checker can't see anything. The app's `/` route is a
+homepage for exactly this (`frontend/src/pages/HomePage.tsx`, alongside `/privacy` and
+`/terms` - `PrivacyPolicyPage.tsx` / `TermsOfServicePage.tsx` - all linked from the
+footer and none dependent on being signed in) — point the consent screen's "Application
+home page" at `<your-domain>` and its "Privacy policy" field at `<your-domain>/privacy`.
+The actual model-authoring app lives at `/models` instead (the "Models" nav link) - only
+`/`, `/privacy`, and `/terms` are meant to be public.
+
+To let Google's checker (and anyone else) actually reach those without signing in, add a
+second, narrower Access application scoped to just those paths with a **Bypass** policy
+(Access → Applications → Add an application → Self-hosted, hostname `<your-domain>`,
+paths `/`, `/privacy`, `/terms`, one policy with action Bypass). Two things worth
+double-checking once that's in place:
+
+- The frontend is a client-rendered SPA (a `<div id="root">` filled in by JS - see
+  `frontend/dist/index.html`), so bypassing `/` alone isn't enough - the bundled JS/CSS
+  under `/assets/*` needs bypassing too, or the "public" pages will just show a blank
+  page (or a login redirect) to anyone not already signed in. Add that path to the same
+  Bypass application.
+- Cloudflare resolves overlapping paths by specificity (the most specific match wins,
+  with no inheritance from a shorter one), so a Bypass on `/` shouldn't widen to cover
+  `/models` or `/connections` if those are matched by a separate, more specific
+  Access application requiring login - but this is exactly the kind of policy
+  interaction worth verifying yourself (an incognito window against the real domain)
+  rather than trusting written-down path lists blindly.
+
+While you're in the consent screen, also make sure its **App name** field matches what
+the app actually calls itself ("Lexis"), since a mismatch there is its own verification
+warning. For most personal/small-team deployments it's simpler to skip verification
 entirely instead: leave the consent screen's **Publishing status** at **Testing** and add
-your own Google account(s) under **Audience → Test users** — sign-in works immediately,
-with none of the above required, since verification review only applies when publishing
-to "In production."
+your own Google
+account(s) under **Audience → Test users** — sign-in works immediately, with none of the
+above required, since verification review only applies when publishing to "In
+production."
 
 ### Connecting Claude's remote connector to it (approach 3 only)
 

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import { useWorkspaceWebMcpTools } from "./hooks/useWorkspaceWebMcpTools";
 import { UserProvider } from "./state/UserContext";
 import { UserSwitcher } from "./components/UserSwitcher";
 import { ModelListPage } from "./pages/ModelListPage";
@@ -12,6 +13,12 @@ import { TermsOfServicePage } from "./pages/TermsOfServicePage";
 const queryClient = new QueryClient();
 
 export default function App() {
+  // Registered once for the app's lifetime - workspace-wide list_models /
+  // list_connections / list_metrics / query_metric tools (see the hook's doc
+  // comment). Per-model query_<metric> tools are registered separately by
+  // ModelDetailPage, scoped to that page's mount lifetime.
+  useWorkspaceWebMcpTools();
+
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>

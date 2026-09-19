@@ -2,6 +2,8 @@
 // needs to be readable without being signed in (see the footer link in App.tsx and
 // the README's "Before you expose it" section on Google OAuth consent screen
 // requirements: Google's verifier checks this URL without a session).
+import { OPERATOR_LABEL, OPERATOR_CONTACT_URL } from "../operator";
+
 const LAST_UPDATED = "2026-09-13";
 
 export function PrivacyPolicyPage() {
@@ -19,10 +21,10 @@ export function PrivacyPolicyPage() {
 
       <h3>Who this applies to</h3>
       <p>
-        This policy covers the specific instance of Lexis you're using (this URL), operated
-        independently by whoever deployed it - not a hosted product run by the Lexis project
-        itself. If you were given access to this instance, the operator is the person or team
-        who invited you.
+        This policy covers this specific deployment of Lexis, run by <strong>{OPERATOR_LABEL}</strong> -
+        not a hosted product operated by the Lexis open-source project itself. If you were
+        given access to this instance, {OPERATOR_LABEL} (or whoever invited you on their
+        behalf) is who this policy, and any request about your data, applies to.
       </p>
 
       <h3>What's collected when you sign in</h3>
@@ -63,7 +65,7 @@ export function PrivacyPolicyPage() {
       <p>
         The server writes one line per request to its own operational log (method, path,
         response status, and the identity header from the sign-in proxy, if any). This log
-        exists for debugging and is not shared with anyone outside the operator.
+        exists for debugging and is not shared with anyone outside {OPERATOR_LABEL}.
       </p>
 
       <h3>Cookies and browser storage</h3>
@@ -84,7 +86,14 @@ export function PrivacyPolicyPage() {
 
       <h3>Data deletion</h3>
       <p>
-        To have your account or data removed, contact the operator of this instance.
+        To have your account or data removed, contact {OPERATOR_LABEL}
+        {OPERATOR_CONTACT_URL && (
+          <>
+            {" "}(<a href={OPERATOR_CONTACT_URL}>open a request here</a>)
+          </>
+        )}
+        . If you were invited by a specific person or team on this instance, you can also
+        reach out to them directly.
       </p>
 
       <h3>Changes</h3>

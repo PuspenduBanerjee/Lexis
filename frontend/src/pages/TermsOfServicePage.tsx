@@ -1,4 +1,6 @@
 // See PrivacyPolicyPage.tsx's comment - same "readable while signed out" requirement.
+import { OPERATOR_LABEL } from "../operator";
+
 const LAST_UPDATED = "2026-09-13";
 
 export function TermsOfServicePage() {
@@ -8,9 +10,9 @@ export function TermsOfServicePage() {
       <p className="muted">Last updated: {LAST_UPDATED}</p>
 
       <p>
-        These terms govern your use of this deployment of Lexis, a semantic-layer tool for
-        authoring data models and running queries against a connected data source. By using
-        it, you agree to the terms below.
+        These terms govern your use of this deployment of Lexis, run by <strong>{OPERATOR_LABEL}</strong>,
+        a semantic-layer tool for authoring data models and running queries against a
+        connected data source. By using it, you agree to the terms below.
       </p>
 
       <h3>Provided as-is</h3>
@@ -24,8 +26,8 @@ export function TermsOfServicePage() {
 
       <h3>No liability</h3>
       <p>
-        To the maximum extent permitted by applicable law, the operator of this Service and
-        its contributors accept <strong>zero responsibility and no liability whatsoever</strong>{" "}
+        To the maximum extent permitted by applicable law, {OPERATOR_LABEL} and Lexis's
+        open-source contributors accept <strong>zero responsibility and no liability whatsoever</strong>{" "}
         for any direct, indirect, incidental, special, consequential, or exemplary damages -
         including loss of data, loss of profits, business interruption, or reliance on any
         metric, query result, or transpiled output produced by the Service - arising out of
@@ -46,8 +48,8 @@ export function TermsOfServicePage() {
 
       <h3>No SLA, availability, or continuity guarantee</h3>
       <p>
-        The operator may modify, suspend, restrict access to, or discontinue the Service, in
-        whole or in part, at any time, without notice and without liability for doing so.
+        {OPERATOR_LABEL} may modify, suspend, restrict access to, or discontinue the Service,
+        in whole or in part, at any time, without notice and without liability for doing so.
         Data you've stored (models, connections, accounts) may be lost, reset, or become
         unavailable; keep your own copies of anything you can't afford to lose.
       </p>
@@ -57,13 +59,6 @@ export function TermsOfServicePage() {
         These terms may be updated as the app changes; continued use after an update means
         you accept the revised terms. The "Last updated" date above reflects the most recent
         revision.
-      </p>
-
-      <p className="muted">
-        This is a template for an independently operated, small-scale deployment of an
-        open-source tool - not legal advice, and not reviewed by an attorney. If this
-        instance serves paying customers or handles data with real regulatory exposure, have
-        counsel review it.
       </p>
     </div>
   );

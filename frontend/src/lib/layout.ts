@@ -15,18 +15,27 @@ export function metricNodeId(metricName: string): string {
 /** Auto-layout: computes node positions from the relationship graph via dagre.
  * No persistence yet (see TODO.md) - recomputed fresh every time a model loads.
  *
- * Metrics are laid out as extra nodes downstream (to the right, since layout is
- * LR) of every dataset their expression references - a `dataset -> metric` edge
- * per reference is fed into the same dagre graph as the real relationship edges
- * so metric nodes never land on top of a dataset they point to, even though
- * they're rendered/styled completely differently by the caller. */
+ * Metrics are laid out as extra nodes downstream (below, since layout is
+ * top-to-bottom) of every dataset their expression references - a `dataset ->
+ * metric` edge per reference is fed into the same dagre graph as the real
+ * relationship edges so metric nodes never land on top of a dataset they point
+ * to, even though they're rendered/styled completely differently by the caller.
+ *
+ * Top-to-bottom (the default, rather than left-to-right) spreads same-rank
+ * siblings across the canvas's width instead of stacking them down its height -
+ * the canvas is wider than it is tall (fixed viewport height, browser-width-ish
+ * canvas), so this makes far better use of the available area for graphs with
+ * many nodes sharing a rank (e.g. many metrics off one fact table). Callers can
+ * pass `direction: "LR"` (e.g. via a UI toggle) for graphs that read better the
+ * other way, such as long linear chains. */
 export function computeLayout(
   datasetNames: string[],
   edges: { from: string; to: string }[],
   metrics: { name: string; referencedDatasets: string[] }[] = [],
+  direction: "TB" | "LR" = "TB",
 ): Record<string, { x: number; y: number }> {
   const graph = new dagre.graphlib.Graph();
-  graph.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 80 });
+  graph.setGraph({ rankdir: direction, nodesep: 40, ranksep: 80 });
   graph.setDefaultEdgeLabel(() => ({}));
 
   for (const name of datasetNames) {

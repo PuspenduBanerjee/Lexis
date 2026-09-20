@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 def _to_out(user: User) -> UserOut:
-    return UserOut(id=user.id, username=user.username, role=user.role.value)
+    return UserOut(id=user.id, username=user.username, role=user.role.value, email=user.email)
 
 
 @router.get("", response_model=list[UserOut])

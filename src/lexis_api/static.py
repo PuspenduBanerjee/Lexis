@@ -13,9 +13,11 @@ Starlette's first-match-wins routing always tries the API routes before falling
 through to this catch-all static mount.
 """
 
+import stat
 from pathlib import Path
 from typing import Any
 
+import anyio
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException
 from starlette.responses import Response
@@ -28,9 +30,24 @@ class SpaStaticFiles(StaticFiles):
     router resolves deep links (e.g. `/models/42`) on a hard refresh. A missing
     file below a hashed-asset path (`/assets/...`) still 404s, since the SPA
     never requests those by a wrong name and serving HTML there just masks a
-    broken build."""
+    broken build.
+
+    Also serves a prerendered route directory's `index.html` (e.g. `/privacy`
+    -> `privacy/index.html`, written by frontend/scripts/prerender.mjs)
+    directly, instead of the base class's default of redirecting to the
+    trailing-slash URL first. That redirect is built from the ASGI scope's
+    scheme, which reflects what the app server sees - plain `http`, since
+    Cloudflare (or any TLS-terminating proxy) forwards to the origin over
+    plain HTTP - so it downgrades an `https://` request to an `http://`
+    redirect. A crawler that (correctly) won't follow a scheme-downgrading
+    redirect - e.g. Google's OAuth consent screen homepage/policy verifier -
+    would otherwise see zero content for these routes."""
 
     async def get_response(self, path: str, scope: Any) -> Response:
+        if path and not path.endswith("/") and not path.startswith("assets/"):
+            full_path, stat_result = await anyio.to_thread.run_sync(self.lookup_path, f"{path}/index.html")
+            if stat_result is not None and stat.S_ISREG(stat_result.st_mode):
+                return self.file_response(full_path, stat_result, scope)
         try:
             return await super().get_response(path, scope)
         except HTTPException as exc:

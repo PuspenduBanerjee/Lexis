@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/prerender.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
+    "@mcp-b/webmcp-polyfill": "^5.1.0",
     "@tanstack/react-query": "^5.101.2",
     "@xyflow/react": "^12.11.1",
     "react": "^19.2.7",
@@ -18,6 +19,7 @@
     "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
+    "@mcp-b/webmcp-types": "^5.1.0",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

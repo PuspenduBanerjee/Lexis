@@ -181,7 +181,9 @@ curl -X POST http://localhost:8000/api/connections \
 
 ## Quickstart: Web UI
 
-Two servers: a FastAPI backend and a Vite/React frontend.
+Two servers: a FastAPI backend and a Vite/React frontend. See
+[docs/web-ui-walkthrough.md](docs/web-ui-walkthrough.md) for GIFs of the model editor,
+semantic model conversion, and semantic query execution flows described below.
 
 **Backend** (from the repo root):
 

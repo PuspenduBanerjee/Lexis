@@ -45,11 +45,15 @@ app.add_middleware(
 
 # One line per request into the app's stdout (captured to .dev/api.log by
 # scripts/dev.sh, or the container log under Docker). Includes the identity
-# headers ngrok's OAuth traffic policy injects upstream from the Google identity
-# (`X-User-Email` / `X-User-Id` / `X-User-Name`) - "-" for direct/local requests
-# that don't pass through the tunnel. Own logger + handler so it works regardless
-# of how the app is launched (uvicorn CLI configures its own loggers but leaves
-# the root bare).
+# headers a tunnel's edge auth injects upstream from Google - either
+# `X-User-Email` / `X-User-Id` / `X-User-Name` (ngrok's `oauth` traffic-policy
+# action) or `Cf-Access-Authenticated-User-Email` (Cloudflare Access in front of a
+# `cloudflared` tunnel) - "-" for direct/local requests that don't pass through
+# either. Both email headers are also what deps.get_current_user actually
+# authenticates with (see there); this line is purely an observability trail, not
+# part of the auth check itself. Own logger + handler so it works regardless of
+# how the app is launched (uvicorn CLI configures its own loggers but leaves the
+# root bare).
 access_logger = logging.getLogger("lexis_api.access")
 if not access_logger.handlers:
     _handler = logging.StreamHandler(sys.stdout)
@@ -62,13 +66,14 @@ if not access_logger.handlers:
 async def log_request_identity(request: Request, call_next):
     response = await call_next(request)
     access_logger.info(
-        "%s %s -> %d  X-User-Email=%s X-User-Id=%s X-User-Name=%s",
+        "%s %s -> %d  X-User-Email=%s X-User-Id=%s X-User-Name=%s Cf-Access-Authenticated-User-Email=%s",
         request.method,
         request.url.path,
         response.status_code,
         request.headers.get("x-user-email", "-"),
         request.headers.get("x-user-id", "-"),
         request.headers.get("x-user-name", "-"),
+        request.headers.get("cf-access-authenticated-user-email", "-"),
     )
     return response
 

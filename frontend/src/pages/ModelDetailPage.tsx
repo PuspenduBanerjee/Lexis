@@ -7,6 +7,7 @@ import { DuckDbRunPanel } from "../components/DuckDbRunPanel";
 import { GraphEditor } from "../components/graph/GraphEditor";
 import { YamlEditor } from "../components/graph/YamlEditor";
 import { TranspileView } from "../components/TranspileView";
+import { useModelWebMcpTools } from "../hooks/useModelWebMcpTools";
 import { useUser } from "../state/UserContext";
 
 type Tab = "browse" | "design" | "transpile" | "run";
@@ -26,11 +27,15 @@ export function ModelDetailPage() {
     queryFn: () => api.getModel(modelId),
   });
 
+  // Called unconditionally (before the loading/error early returns below) per
+  // the rules of hooks - it no-ops until `model` has loaded.
+  useModelWebMcpTools(model);
+
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteModel(modelId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["models"] });
-      navigate("/");
+      navigate("/models");
     },
   });
 
@@ -43,7 +48,7 @@ export function ModelDetailPage() {
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <Link to="/">&larr; Models</Link>
+          <Link to="/models">&larr; Models</Link>
           <h2>{model.name}</h2>
         </div>
         {canManage && (

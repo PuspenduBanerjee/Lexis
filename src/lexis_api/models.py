@@ -32,6 +32,10 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(unique=True, index=True)
+    # Set only for users provisioned via Google sign-in (see deps.get_current_user) -
+    # null for the 3 seeded dev-stub users. Doubles as the "is this a real,
+    # Google-authenticated identity" flag the frontend reads off `/api/users/me`.
+    email: Mapped[str | None] = mapped_column(unique=True, index=True, default=None)
     role: Mapped[Role] = mapped_column(SAEnum(Role), default=Role.VIEWER)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

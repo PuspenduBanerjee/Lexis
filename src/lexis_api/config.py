@@ -11,6 +11,16 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./lexis_dev.db"
     cors_origins: list[str] = ["http://localhost:5173"]
     default_user_id: int = 1
+    # Dev/demo auth stub: honour the client-supplied `X-Account-Id` header (and the
+    # `default_user_id` fallback when it's absent) in deps.get_current_user. Real
+    # Google identity - `X-User-Email`/`X-User-Name` (ngrok's `oauth` traffic-policy
+    # action) or `Cf-Access-Authenticated-User-Email` (Cloudflare Access in front of a
+    # `cloudflared` tunnel) - see main.py's log_request_identity - always takes
+    # priority over this stub when present, so leaving it on is harmless once a
+    # deployment sits behind such a tunnel. Turn it off (LEXIS_DEV_AUTH_HEADER_ENABLED=0)
+    # once Google auth is the only way in, to stop anyone who reaches the app directly
+    # (bypassing the tunnel) from picking any user id for free - see deps.py.
+    dev_auth_header_enabled: bool = True
     max_duckdb_upload_mb: int = 50
     upload_tmp_dir: str = tempfile.gettempdir()
     max_result_rows: int = 1000

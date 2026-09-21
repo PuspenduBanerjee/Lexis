@@ -246,6 +246,187 @@ def test_timeseries_shows_year_over_year_growth(client_as, model_id):
     assert periods["2024"] == pytest.approx(2_545_489.72, rel=1e-6)
 
 
+def test_return_amount_by_item_category_sums_to_the_overall_total(client_as, model_id):
+    resp = _run(client_as, model_id, mode="demo", metric="return_amount", group_by_json='["dim_item.i_category"]')
+    assert resp.status_code == 200, resp.text
+    rows = dict(resp.json()["rows"])
+    assert sum(rows.values()) == pytest.approx(587_990.80, rel=1e-6)
+
+
+def test_return_amount_by_reason_sums_to_the_overall_total(client_as, model_id):
+    resp = _run(
+        client_as, model_id, mode="demo", metric="return_amount", group_by_json='["fct_store_returns.sr_reason"]'
+    )
+    assert resp.status_code == 200, resp.text
+    rows = dict(resp.json()["rows"])
+    assert sum(rows.values()) == pytest.approx(587_990.80, rel=1e-6)
+
+
+def test_total_revenue_by_promotion_channel_sums_to_the_overall_total(client_as, model_id):
+    resp = _run(
+        client_as, model_id, mode="demo", metric="total_revenue", group_by_json='["dim_promotion.p_channel"]'
+    )
+    assert resp.status_code == 200, resp.text
+    rows = dict(resp.json()["rows"])
+    assert sum(rows.values()) == pytest.approx(5_522_357.40, rel=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("metric", "group_by_json", "rejected_field"),
+    [
+        ("total_revenue", '["fct_store_returns.sr_reason"]', "fct_store_returns.sr_reason"),
+        ("return_amount", '["dim_promotion.p_channel"]', "dim_promotion.p_channel"),
+        ("return_amount", '["fct_store_sales.ss_promo_sk"]', "fct_store_sales.ss_promo_sk"),
+        (
+            "total_revenue",
+            '["dim_item.i_category", "fct_store_returns.sr_reason"]',
+            "fct_store_returns.sr_reason",
+        ),
+        ("return_rate_pct", '["dim_promotion.p_channel"]', "dim_promotion.p_channel"),
+        ("return_rate_pct", '["fct_store_returns.sr_reason"]', "fct_store_returns.sr_reason"),
+        ("return_rate_pct", '["fct_store_sales.ss_promo_sk"]', "fct_store_sales.ss_promo_sk"),
+    ],
+)
+def test_cross_fact_group_by_is_rejected_via_the_rest_api(client_as, model_id, metric, group_by_json, rejected_field):
+    # Requirement 3: violations surface as HTTP 422 (not a silently-wrong 200)
+    # with a clear message naming the metric and the rejected field, through the
+    # same REST path the Run tab and WebMCP both use.
+    resp = _run(client_as, model_id, mode="demo", metric=metric, group_by_json=group_by_json)
+    assert resp.status_code == 422, resp.text
+    detail = str(resp.json()["detail"])
+    assert metric in detail
+    assert rejected_field in detail
+
+
+def test_return_rate_pct_overall(client_as, model_id):
+    resp = _run(client_as, model_id, mode="demo", metric="return_rate_pct", group_by_json="[]")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["rows"][0][0] == pytest.approx(10.65, rel=1e-3)
+
+
+def test_return_rate_pct_by_item_category_matches_two_separate_queries(client_as, model_id):
+    returns = dict(
+        _run(client_as, model_id, mode="demo", metric="return_amount", group_by_json='["dim_item.i_category"]')
+        .json()["rows"]
+    )
+    sales = dict(
+        _run(client_as, model_id, mode="demo", metric="total_revenue", group_by_json='["dim_item.i_category"]')
+        .json()["rows"]
+    )
+    resp = _run(client_as, model_id, mode="demo", metric="return_rate_pct", group_by_json='["dim_item.i_category"]')
+    assert resp.status_code == 200, resp.text
+    rate = dict(resp.json()["rows"])
+
+    assert set(rate) == set(returns) == set(sales)
+    for category in rate:
+        assert rate[category] == pytest.approx(100.0 * returns[category] / sales[category], rel=1e-9)
+    assert rate["Apparel"] == pytest.approx(13.2, abs=0.1)
+    assert rate["Office"] == pytest.approx(8.5, abs=0.1)
+
+
+def test_return_rate_pct_by_quarter(client_as, model_id):
+    resp = client_as("viewer").post(
+        f"/api/models/{model_id}/run/timeseries",
+        data={
+            "mode": "demo", "metric": "return_rate_pct",
+            "time_dataset": "dim_date", "time_field": "d_date", "grain": "quarter",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()["rows"]
+    assert len(rows) == 12
+
+    returns_by_q = dict(
+        client_as("viewer")
+        .post(
+            f"/api/models/{model_id}/run/timeseries",
+            data={
+                "mode": "demo", "metric": "return_amount",
+                "time_dataset": "dim_date", "time_field": "d_date", "grain": "quarter",
+            },
+        )
+        .json()["rows"]
+    )
+    sales_by_q = dict(
+        client_as("viewer")
+        .post(
+            f"/api/models/{model_id}/run/timeseries",
+            data={
+                "mode": "demo", "metric": "total_revenue",
+                "time_dataset": "dim_date", "time_field": "d_date", "grain": "quarter",
+            },
+        )
+        .json()["rows"]
+    )
+    for period, rate in rows:
+        assert rate == pytest.approx(100.0 * returns_by_q[period] / sales_by_q[period], rel=1e-9)
+    assert rows[0][1] == pytest.approx(7.8, abs=0.1)
+
+
+def test_return_rate_pct_by_week_unions_both_facts_periods(client_as, model_id):
+    resp = client_as("viewer").post(
+        f"/api/models/{model_id}/run/timeseries",
+        data={
+            "mode": "demo", "metric": "return_rate_pct",
+            "time_dataset": "dim_date", "time_field": "d_date", "grain": "week",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()["rows"]
+    assert len(rows) == 158
+
+    by_week = {row[0][:10]: row[1] for row in rows}
+    assert by_week["2021-12-27"] == pytest.approx(0.0)  # sales that week, no returns
+    assert by_week["2024-12-30"] == pytest.approx(175.1, abs=0.1)  # returns 29,454.41 vs sales 16,824.05
+
+
+# Purely-additive metrics (a bare SUM, no ratio/COUNT DISTINCT) - see
+# test_additive_metrics_group_sums_equal_the_overall_total_for_every_allowed_group_by.
+_ADDITIVE_METRICS = [
+    "total_revenue", "gross_profit", "units_sold", "total_discount",
+    "return_amount", "returned_units", "net_loss_from_returns",
+]
+
+
+def test_additive_metrics_group_sums_equal_the_overall_total_for_every_allowed_group_by(retail_model):
+    """Property test that would have caught the original bug directly: for
+    every purely-additive metric and every field in its *allowed* group_by set
+    (see ResolvedModel.metric_allowed_group_by), grouping by that one field and
+    summing the results back up must reproduce the metric's overall
+    (ungrouped) total - a fan-trap (double-counting through a shared
+    dimension) or a dropped-rows bug would show up here as a group-sum that
+    doesn't match. Runs directly against the emitter + the live demo dataset
+    (not through the HTTP layer) since it's ~400 query combinations - the REST
+    path is already covered by the fixed-value tests above and by
+    test_cross_fact_group_by_is_rejected_via_the_rest_api."""
+    from lexis._vendor.ossie import OssieDialect
+    from lexis.retail_demo_data import build_retail_demo_connection
+    from lexis.transpilers.sql import DuckDBEmitter
+    from lexis_api.config import settings
+
+    emitter = DuckDBEmitter()
+    con = build_retail_demo_connection()
+    try:
+        checked = 0
+        for metric_name in _ADDITIVE_METRICS:
+            metric = retail_model.metrics[metric_name]
+            expr = retail_model.resolve_expression(metric.expression, OssieDialect.ANSI_SQL)
+            overall = con.execute(emitter.emit_metric_query(retail_model, metric_name, group_by=[])).fetchone()[0]
+
+            for ref in retail_model.metric_allowed_group_by(expr):
+                sql = emitter.emit_metric_query(retail_model, metric_name, group_by=[ref])
+                rows = con.execute(sql).fetchall()
+                if len(rows) > settings.max_result_rows:
+                    continue  # would be truncated in the real API path - not this test's concern
+                total = sum(v for _, v in rows if v is not None)
+                assert total == pytest.approx(overall, abs=0.01), f"{metric_name} GROUP BY {ref}: {total} != {overall}"
+                checked += 1
+
+        assert checked > 300  # sanity: this actually exercised most of the ~415 combinations
+    finally:
+        con.close()
+
+
 def test_query_results_beyond_the_row_cap_set_a_truncated_flag(client_as, model_id, monkeypatch):
     from lexis_api.config import settings
 

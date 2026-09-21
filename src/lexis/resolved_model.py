@@ -169,7 +169,12 @@ class ResolvedModel:
         grouped by: every field of `fact` itself, plus every field of every
         dimension reachable from it (see `reachable_dimensions`) - nothing from a
         different fact table, and nothing from a dimension only that other fact
-        reaches."""
+        reaches.
+
+        This is a *structural* safety guarantee (no fan-trap), not a field
+        hygiene one - it still includes surrogate keys, raw measure columns, and
+        PII fields indiscriminately; see TODO.md's "Metric group_by field
+        hygiene" for that follow-up."""
         refs: list[str] = []
         for ds_name in [fact, *sorted(self.reachable_dimensions(fact))]:
             for f in self.datasets[ds_name].fields or []:

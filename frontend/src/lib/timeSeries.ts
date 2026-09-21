@@ -22,10 +22,15 @@ export interface TimeFieldRef {
   field: string;
 }
 
-/** Every field marked `is_time` across a model's datasets - candidates for the
- * time-series drill/roll dimension. */
+/** Candidates for the time-series drill/roll dimension - from `model.time_fields`
+ * (see `ModelDetailOut.time_fields`), not a local scan of every `is_time` field:
+ * the backend's `time_axis_refs` prefers fields with a real date/timestamp
+ * datatype and only falls back to bare `is_time` fields when the model tags none,
+ * so scanning `is_time` fields directly here could offer e.g. a `d_year` INTEGER
+ * column that `DATE_TRUNC` can't actually bucket by. */
 export function timeFields(model: ModelDetailOut): TimeFieldRef[] {
-  return model.datasets.flatMap((d) =>
-    d.fields.filter((f) => f.is_time).map((f) => ({ dataset: d.name, field: f.name })),
-  );
+  return model.time_fields.map((ref) => {
+    const [dataset, field] = ref.split(".", 2);
+    return { dataset, field };
+  });
 }

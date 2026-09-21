@@ -29,11 +29,20 @@ def _json_safe(value: Any) -> Any:
 
 def _fetch_result(cursor: Any) -> dict:
     columns = [d[0] for d in cursor.description]
-    rows = cursor.fetchmany(settings.max_result_rows)
+    limit = settings.max_result_rows
+    # Fetch one row past the cap to detect truncation without a separate COUNT(*)
+    # query - if the driver hands back more than `limit` rows, there was at least
+    # one more the cap cut off, so say so instead of returning a full-looking page
+    # that's silently missing data.
+    rows = cursor.fetchmany(limit + 1)
+    truncated = len(rows) > limit
+    if truncated:
+        rows = rows[:limit]
     return {
         "columns": columns,
         "rows": [[_json_safe(v) for v in r] for r in rows],
         "row_count": len(rows),
+        "truncated": truncated,
     }
 
 

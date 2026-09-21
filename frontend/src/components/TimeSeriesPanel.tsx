@@ -196,7 +196,10 @@ function TimeSeriesTable({
           ))}
         </tbody>
       </table>
-      <p className="muted">{result.row_count} row(s)</p>
+      <p className="muted">
+        {result.row_count} row(s)
+        {result.truncated && " — truncated; pick a coarser time_grain to see the rest"}
+      </p>
     </div>
   );
 }

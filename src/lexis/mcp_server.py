@@ -53,11 +53,18 @@ def _run(con: Any, sql: str) -> dict:
     cursor = con.cursor()
     cursor.execute(sql)
     columns = [d[0] for d in cursor.description]
-    rows = cursor.fetchmany(MAX_RESULT_ROWS)
+    # Fetch one row past the cap to detect truncation without a separate COUNT(*)
+    # query - see lexis_api.query_runtime._fetch_result (this is that module's
+    # duplicate, per this file's own docstring).
+    rows = cursor.fetchmany(MAX_RESULT_ROWS + 1)
+    truncated = len(rows) > MAX_RESULT_ROWS
+    if truncated:
+        rows = rows[:MAX_RESULT_ROWS]
     return {
         "columns": columns,
         "rows": [[_json_safe(v) for v in r] for r in rows],
         "row_count": len(rows),
+        "truncated": truncated,
         "sql": sql,
     }
 

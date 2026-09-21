@@ -9,9 +9,15 @@
 # ~1,500 return facts), so every metric here can be run live in "Demo dataset"
 # mode.
 #
-# NOTE: no metric references *both* fact tables - the SQL emitter builds a single
-# query rooted at the first referenced dataset and would fan-trap two facts across
-# a shared dimension. Sales metrics and returns metrics are kept separate.
+# NOTE: metrics whose expression references only one fact table (sales or
+# returns) get a single-fact query, and the group_by enum each one advertises is
+# narrowed to that fact's own fields plus the dimensions *it* reaches (see
+# ResolvedModel.metric_allowed_group_by) - grouping fct_store_sales.* metrics by
+# fct_store_returns.* fields (or vice versa) is rejected, since the two facts
+# only connect through a shared dimension and joining both to it directly would
+# fan-trap. A metric that deliberately spans both facts (return_rate_pct) gets a
+# drill-across query instead: each fact aggregated separately, then combined
+# with a null-safe FULL OUTER JOIN - see SqlDialectEmitter._emit_drill_across_query.
 
 version: "0.2.0.dev0"
 
@@ -26,14 +32,18 @@ semantic_model:
       instructions: >-
         Use this semantic model for omnichannel retail analytics. `fct_store_sales`
         is at sales-line-item grain; multiple line items share `ss_ticket_number`
-        (a basket/transaction). `fct_store_returns` is a separate fact - do not
-        combine sales and returns metrics in one query. Group sales metrics by
-        item, store, customer, promotion, or date attributes. Dates are keyed by a
-        YYYYMMDD integer surrogate key (`*_date_sk`). For weekly trends, use a
-        query with time_grain=week on dim_date.d_date; the buckets it returns are
-        ISO 8601 weeks (Monday-Sunday), but this business reports on US retail
-        weeks (Sunday-Saturday), so label each bucket by the Sunday that starts it
-        and note the one-day offset when comparing to internal weekly reports.
+        (a basket/transaction). `fct_store_returns` is a separate fact; sales and
+        returns are separate facts, so a sales metric and a returns metric can't
+        be combined in one query - use return_rate_pct for a returns-vs-sales
+        ratio instead. Group sales metrics by item, store, customer, promotion,
+        or date attributes; returns metrics (and return_rate_pct) only by date,
+        customer, item, or store attributes - not promotion, which only sales
+        reaches. Dates are keyed by a YYYYMMDD integer surrogate key
+        (`*_date_sk`). For weekly trends, use a query with time_grain=week on
+        dim_date.d_date; the buckets it returns are ISO 8601 weeks
+        (Monday-Sunday), but this business reports on US retail weeks
+        (Sunday-Saturday), so label each bucket by the Sunday that starts it and
+        note the one-day offset when comparing to internal weekly reports.
 
     datasets:
       # ---- Fact: store sales (line-item grain) --------------------------------
@@ -1033,6 +1043,23 @@ semantic_model:
           synonyms:
             - "returns loss"
             - "shrink from returns"
+
+      # ---- Cross-fact metric (drill-across, see SqlDialectEmitter._emit_drill_across_query) --
+      - name: return_rate_pct
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: >-
+                100.0 * SUM(fct_store_returns.sr_return_amt)
+                / NULLIF(SUM(fct_store_sales.ss_ext_sales_price), 0)
+        description: >-
+          Refund dollars dated in the group as a percent of sales dollars dated
+          in the group. Same-period ratio, not a cohort return rate. Group by
+          date, customer, item, or store attributes only.
+        ai_context:
+          synonyms:
+            - "return rate"
+            - "refund rate"
 
     custom_extensions:
       - vendor_name: DBT

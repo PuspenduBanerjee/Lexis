@@ -21,7 +21,10 @@ export function ResultsTable({ result }: { result: RunDuckDbOut }) {
           ))}
         </tbody>
       </table>
-      <p className="muted">{result.row_count} row(s)</p>
+      <p className="muted">
+        {result.row_count} row(s)
+        {result.truncated && " — truncated; narrow the query (fewer group_by refs) to see the rest"}
+      </p>
     </div>
   );
 }

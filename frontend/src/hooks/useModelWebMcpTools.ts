@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { api } from "../api/client";
 import type { ModelDetailOut } from "../api/types";
-import { fieldRefs } from "../lib/fieldRefs";
 import { resolveTimeField, timeBucketingProperties } from "../lib/webmcpMetrics";
 import { useWebMcpTools, type WebMcpTool } from "../lib/webmcp";
 
@@ -17,19 +16,23 @@ import { useWebMcpTools, type WebMcpTool } from "../lib/webmcp";
 export function useModelWebMcpTools(model: ModelDetailOut | undefined): void {
   const tools = useMemo<WebMcpTool[]>(() => {
     if (!model) return [];
-    const dimensionRefs = fieldRefs(model);
     const timeProperties = timeBucketingProperties(model);
 
     return model.metrics.map((metric): WebMcpTool => ({
       name: `query_${metric.name}`,
-      description: metric.description || `Query the ${metric.name} metric.`,
+      // `tool_description` already composes ai_context synonyms/examples in and
+      // falls back to "Query the X metric." - see MetricOut.tool_description,
+      // the same text `build_metric_tool_specs` gives the server-side tool.
+      description: metric.tool_description,
       inputSchema: {
         type: "object",
         properties: {
           connection_id: { type: "integer", description: "a connection id from the Connections page" },
           group_by: {
             type: "array",
-            items: { type: "string", enum: dimensionRefs },
+            // Per-metric (not fieldRefs(model)) - a sales metric can't legally
+            // be grouped by a returns-only field, or vice versa. See MetricOut.group_by.
+            items: { type: "string", enum: metric.group_by },
             description: "Zero or more dataset.field references to group results by.",
           },
           ...timeProperties,
@@ -37,6 +40,7 @@ export function useModelWebMcpTools(model: ModelDetailOut | undefined): void {
         required: ["connection_id"],
         additionalProperties: false,
       },
+      annotations: { readOnlyHint: true },
       execute: async (input) => {
         const connectionId = Number(input.connection_id);
         const groupBy = (input.group_by as string[] | undefined) ?? [];

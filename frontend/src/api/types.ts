@@ -41,6 +41,18 @@ export interface MetricOut {
   expression: string | null;
   referenced_datasets: string[];
   datatype: string | null;
+  // `description` composed with ai_context (synonyms as "Also known as: ...",
+  // examples as "Example questions: ..."), falling back to "Query the X metric."
+  // when there's nothing to compose - the exact text a query_<metric> tool shows.
+  // Use this (not the bare `description` above) wherever a description is shown
+  // to an agent, so WebMCP and the MCP servers show identical text.
+  tool_description: string;
+  // `dataset.field` refs this specific metric may legally be grouped by - its
+  // home fact's own fields plus the dimensions *that fact* reaches, not every
+  // field in the model. Grouping a sales metric by a returns-only field (or
+  // vice versa) fan-traps through a shared dimension join and is rejected
+  // server-side; use this (not fieldRefs(model)) to avoid offering it at all.
+  group_by: string[];
 }
 
 export interface ModelSummaryOut {
@@ -52,6 +64,9 @@ export interface ModelSummaryOut {
   metric_count: number;
   created_at: string;
   updated_at: string;
+  // The model's plain (non-ai_context) description - see ModelDetailOut.instructions
+  // for the richer ai_context text. Null when the model declares neither.
+  description: string | null;
 }
 
 export interface ModelDetailOut extends ModelSummaryOut {
@@ -59,6 +74,15 @@ export interface ModelDetailOut extends ModelSummaryOut {
   datasets: DatasetOut[];
   relationships: RelationshipOut[];
   metrics: MetricOut[];
+  // Model-level ai_context (instructions/synonyms/examples) - e.g. "keep sales
+  // and returns in separate queries". Null when the model declares none.
+  instructions: string | null;
+  // `dataset.field` refs usable as a time_grain query's time axis - prefer this
+  // over scanning `datasets[].fields[].is_time` yourself (see lib/timeSeries.ts's
+  // `timeFields`), which can't tell a real date column from e.g. a `d_year`
+  // INTEGER field also marked is_time, and so can list fields that don't actually
+  // work as a time_grain axis.
+  time_fields: string[];
 }
 
 export interface CreateModelIn {
@@ -109,6 +133,10 @@ export interface RunDuckDbOut {
   rows: unknown[][];
   row_count: number;
   sql: string;
+  // True when there were more rows than the server's cap and `rows` was cut off
+  // there - narrow the query (e.g. a coarser time_grain or fewer group_by refs)
+  // rather than assume this is the complete result.
+  truncated: boolean;
 }
 
 export interface GraphFieldIn {

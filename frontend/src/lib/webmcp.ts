@@ -24,6 +24,10 @@ export interface WebMcpTool {
     required?: string[];
     additionalProperties?: boolean;
   };
+  // Standard WebMCP tool annotations (https://webmachinelearning.github.io/webmcp/#dictdef-toolannotations) -
+  // `readOnlyHint: true` tells a calling agent this tool never mutates anything,
+  // so it's safe to call without the confirmation prompts a mutating tool would get.
+  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
   execute: (input: Record<string, unknown>) => MaybePromise<unknown>;
 }
 

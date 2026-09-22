@@ -109,10 +109,25 @@ export type Target =
   | "dbt"
   | "mcp"
   | "snowflake_semantic_view"
+  | "snowflake_cortex_analyst"
   | "sml";
 
 export const SQL_TARGETS: Target[] = ["duckdb", "postgres", "bigquery", "databricks", "snowflake"];
-export const ALL_TARGETS: Target[] = [...SQL_TARGETS, "cube", "dbt", "mcp", "snowflake_semantic_view", "sml"];
+// Alphabetical, so the Target <select> in TranspileView is easy to scan - not grouped
+// by category (that's what SQL_TARGETS is for).
+export const ALL_TARGETS: Target[] = [
+  "bigquery",
+  "cube",
+  "databricks",
+  "dbt",
+  "duckdb",
+  "mcp",
+  "postgres",
+  "sml",
+  "snowflake",
+  "snowflake_cortex_analyst",
+  "snowflake_semantic_view",
+];
 
 export interface TranspileIn {
   target: Target;

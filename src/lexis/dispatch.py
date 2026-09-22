@@ -12,15 +12,24 @@ from lexis.sml.emit import emit_sml_files
 from lexis.transpilers.cube import emit_cube_yaml
 from lexis.transpilers.dbt_ossie import emit_dbt_ossie_document
 from lexis.transpilers.mcp import emit_mcp_tool_manifest
+from lexis.transpilers.snowflake_cortex_analyst import emit_snowflake_cortex_analyst
 from lexis.transpilers.snowflake_semantic_view import emit_snowflake_semantic_view
 from lexis.transpilers.sql import EMITTERS as SQL_EMITTERS
 
-TARGETS = [*SQL_EMITTERS.keys(), "cube", "dbt", "mcp", "snowflake_semantic_view", "sml"]
+TARGETS = [
+    *SQL_EMITTERS.keys(),
+    "cube",
+    "dbt",
+    "mcp",
+    "snowflake_semantic_view",
+    "snowflake_cortex_analyst",
+    "sml",
+]
 
 # Short alternate spellings accepted alongside the canonical TARGETS name - resolved
 # to the canonical name before dispatch, so callers/tests only ever need to branch on
 # the canonical spelling below.
-TARGET_ALIASES = {"ssv": "snowflake_semantic_view"}
+TARGET_ALIASES = {"ssv": "snowflake_semantic_view", "cortex_analyst": "snowflake_cortex_analyst"}
 
 
 @dataclass(frozen=True)
@@ -59,6 +68,9 @@ def transpile(
         return TranspileResult(content=emit_mcp_tool_manifest(model), warnings=[])
     elif target == "snowflake_semantic_view":
         return TranspileResult(content=emit_snowflake_semantic_view(model), warnings=[])
+    elif target == "snowflake_cortex_analyst":
+        result = emit_snowflake_cortex_analyst(document)
+        return TranspileResult(content=result.artifact.content, warnings=result.warnings)
     elif target == "sml":
         result = emit_sml_files(document)
         return TranspileResult(content=result.files, warnings=result.warnings)

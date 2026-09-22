@@ -1,0 +1,19 @@
+{
+  "_comment": "Single source of truth for every converter under third_party/ossie/converters/. tests/test_ossie_spec_conformance.py::test_converter_directory_set_matches_manifest fails if upstream adds/removes/renames a converter directory that isn't reflected here - that's the trip wire for 'go port the new/changed converter' on a submodule bump. `status: ported` converters are vendored under src/lexis/_vendor/ossie_converters/ and checked byte-for-byte (modulo the documented `from ossie import` rewrite) against the submodule by the same test file. `status: todo` converters have no Lexis transpiler yet. `language: java` converters (polaris, salesforce) can't be vendored as Python source at all - the plan for those is a from-scratch Lexis-native reimplementation, not a port.",
+  "converters": {
+    "databricks": { "language": "python", "package": "ossie_databricks", "status": "todo" },
+    "dbt": { "language": "python", "package": "ossie_dbt", "status": "todo" },
+    "gooddata": { "language": "python", "package": "ossie_gooddata", "status": "todo" },
+    "honeydew": { "language": "python", "package": "ossie_honeydew", "status": "todo" },
+    "microsoft": { "language": "python", "package": "ossie_microsoft", "status": "todo" },
+    "nvidia": { "language": "python", "package": "ossie_nvidia_gsf", "status": "todo" },
+    "omni": { "language": "python", "package": "ossie_omni", "status": "todo" },
+    "ontology": { "language": "python", "package": "ossie_ontology", "status": "todo" },
+    "orionbelt": { "language": "python", "package": "ossie_orionbelt", "status": "todo" },
+    "polaris": { "language": "java", "package": null, "status": "todo" },
+    "salesforce": { "language": "java", "package": null, "status": "todo" },
+    "sigma": { "language": "python", "package": "ossie_sigma", "status": "todo" },
+    "snowflake": { "language": "python", "package": "ossie_snowflake", "status": "ported" },
+    "wisdom": { "language": "python", "package": "ossie_wisdom", "status": "todo" }
+  }
+}

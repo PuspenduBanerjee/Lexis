@@ -89,8 +89,7 @@ def test_unsupported_metric_expression_is_preserved_verbatim_not_dropped(tpcds_d
     # stashed under model.yml's x_lexis_unconverted_metrics escape hatch, not just
     # dropped with a warning. Ossie models are frozen, so build the modified
     # metric via model_copy rather than mutating in place.
-    semantic_model = tpcds_document.semantic_model[0]
-    old_metric = semantic_model.metrics[0]
+    old_metric = tpcds_document.metrics[0]
     new_dialect = old_metric.expression.dialects[0].model_copy(
         update={
             "expression": (
@@ -100,11 +99,8 @@ def test_unsupported_metric_expression_is_preserved_verbatim_not_dropped(tpcds_d
     )
     new_expression = old_metric.expression.model_copy(update={"dialects": [new_dialect]})
     new_metric = old_metric.model_copy(update={"expression": new_expression})
-    new_semantic_model = semantic_model.model_copy(
-        update={"metrics": [new_metric, *semantic_model.metrics[1:]]}
-    )
     document = tpcds_document.model_copy(
-        update={"semantic_model": [new_semantic_model, *tpcds_document.semantic_model[1:]]}
+        update={"metrics": [new_metric, *tpcds_document.metrics[1:]]}
     )
 
     result = emit_sml_files(document)

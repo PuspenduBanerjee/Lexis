@@ -83,8 +83,6 @@ def _check_unique(names: list[str], kind: str) -> None:
 
 def apply_graph_edit(document: OssieDocument, edit: GraphEditIn) -> OssieDocument:
     """Return a new OssieDocument with datasets/relationships/metrics replaced by `edit`."""
-    semantic_model = document.semantic_model[0]
-
     _check_unique([d.name for d in edit.datasets], "dataset")
     for dataset_in in edit.datasets:
         _check_unique([f.name for f in dataset_in.fields], f"field (in dataset {dataset_in.name!r})")
@@ -98,16 +96,15 @@ def apply_graph_edit(document: OssieDocument, edit: GraphEditIn) -> OssieDocumen
         if rel.to not in dataset_names:
             raise ValueError(f"relationship {rel.name!r} references unknown dataset {rel.to!r}")
 
-    existing_datasets = {d.name: d for d in semantic_model.datasets}
+    existing_datasets = {d.name: d for d in document.datasets}
     new_datasets = [_merge_dataset(existing_datasets.get(d.name), d) for d in edit.datasets]
 
-    existing_relationships = {r.name: r for r in (semantic_model.relationships or [])}
+    existing_relationships = {r.name: r for r in (document.relationships or [])}
     new_relationships = [_merge_relationship(existing_relationships.get(r.name), r) for r in edit.relationships]
 
-    existing_metrics = {m.name: m for m in (semantic_model.metrics or [])}
+    existing_metrics = {m.name: m for m in (document.metrics or [])}
     new_metrics = [_merge_metric(existing_metrics.get(m.name), m) for m in edit.metrics]
 
-    updated_model = semantic_model.model_copy(
+    return document.model_copy(
         update={"datasets": new_datasets, "relationships": new_relationships, "metrics": new_metrics}
     )
-    return document.model_copy(update={"semantic_model": [updated_model]})

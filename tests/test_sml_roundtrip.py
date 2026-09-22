@@ -35,8 +35,8 @@ def test_roundtrip_preserves_datasets_relationships_and_metrics(tpcds_document, 
     repo_dir = _write_sml_repo(tmp_path, emitted.files)
     parsed = parse_sml_repo(repo_dir)
 
-    original = tpcds_document.semantic_model[0]
-    reparsed = parsed.document.semantic_model[0]
+    original = tpcds_document
+    reparsed = parsed.document
 
     assert {d.name for d in reparsed.datasets} == {d.name for d in original.datasets}
 
@@ -65,8 +65,8 @@ def test_roundtrip_field_expressions_survive(tpcds_document, tmp_path):
     repo_dir = _write_sml_repo(tmp_path, emitted.files)
     parsed = parse_sml_repo(repo_dir)
 
-    reparsed_store = next(d for d in parsed.document.semantic_model[0].datasets if d.name == "store")
-    original_store = next(d for d in tpcds_document.semantic_model[0].datasets if d.name == "store")
+    reparsed_store = next(d for d in parsed.document.datasets if d.name == "store")
+    original_store = next(d for d in tpcds_document.datasets if d.name == "store")
 
     reparsed_field_names = {f.name for f in reparsed_store.fields}
     original_field_names = {f.name for f in original_store.fields}
@@ -126,7 +126,7 @@ class TestSmlToOssieToSml:
         # not re-materialize it as its own standalone SML file, since the
         # original file's folder placement was never captured to reconstruct.
         parsed = parse_sml_repo(sml_repo_dir)
-        stash = read_stash(parsed.document.semantic_model[0])
+        stash = read_stash(parsed.document)
         assert "pii_restriction" in stash["unsupported_objects"]
 
         emitted = emit_sml_files(parsed.document)

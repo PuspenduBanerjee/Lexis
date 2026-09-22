@@ -378,5 +378,5 @@ def parse_sml_repo(directory: str | Path) -> SmlParseResult:
     if stash:
         sem_model["custom_extensions"] = [make_stash_extension(stash).model_dump()]
 
-    document = OssieDocument.model_validate({"semantic_model": [sem_model]})
+    document = OssieDocument.model_validate(sem_model)
     return SmlParseResult(document=document, warnings=warnings)

@@ -117,14 +117,14 @@ _TOOLS = [
 def _resolved_model(db: Session, model_id: int) -> tuple[SemanticModelRecord, ResolvedModel]:
     record = find_model_or_404(db, model_id)
     document = parse_ossie_yaml(record.raw_yaml)
-    return record, ResolvedModel.build(document.semantic_model[0])
+    return record, ResolvedModel.build(document)
 
 
 def _list_models(db: Session) -> dict[str, Any]:
     records = db.query(SemanticModelRecord).order_by(SemanticModelRecord.id).all()
     models = []
     for record in records:
-        model = ResolvedModel.build(parse_ossie_yaml(record.raw_yaml).semantic_model[0])
+        model = ResolvedModel.build(parse_ossie_yaml(record.raw_yaml))
         models.append(
             {
                 "id": record.id,

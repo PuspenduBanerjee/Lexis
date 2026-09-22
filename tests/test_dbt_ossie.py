@@ -23,6 +23,5 @@ def test_artifact_targets_osi_directory_by_default(tpcds_document):
 def test_document_shape_preserved_datasets_and_metrics(tpcds_document):
     result = emit_dbt_ossie_document(tpcds_document)
     data = json.loads(result.artifact.content)
-    sm = data["semantic_model"][0]
-    assert len(sm["datasets"]) == 5
-    assert len(sm["metrics"]) == 5
+    assert len(data["datasets"]) == 5
+    assert len(data["metrics"]) == 5

@@ -17,14 +17,14 @@ from lexis.sml.parse import parse_sml_repo
 
 def test_datasets_resolve_source_from_connection(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    by_name = {d.name: d for d in result.document.semantic_model[0].datasets}
+    by_name = {d.name: d for d in result.document.datasets}
     assert by_name["orders"].source == "salesdb.public.orders"
     assert by_name["customers"].source == "salesdb.public.customers"
 
 
 def test_dimension_attributes_flatten_to_fields_on_their_own_dataset(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    customers = next(d for d in result.document.semantic_model[0].datasets if d.name == "customers")
+    customers = next(d for d in result.document.datasets if d.name == "customers")
     field_names = {f.name for f in customers.fields}
     # key attribute (Customer Dimension level) + region (Customer Region level,
     # the hierarchy's other level) + the leaf level's secondary attribute.
@@ -33,7 +33,7 @@ def test_dimension_attributes_flatten_to_fields_on_their_own_dataset(sml_repo_di
 
 def test_degenerate_time_dimension_marks_its_field_is_time(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    orders = next(d for d in result.document.semantic_model[0].datasets if d.name == "orders")
+    orders = next(d for d in result.document.datasets if d.name == "orders")
     order_date = next(f for f in orders.fields if f.name == "order_date")
     assert order_date.is_time_dimension()
 
@@ -44,14 +44,14 @@ def test_fact_dataset_backing_a_degenerate_dimension_key_gets_no_primary_key(sml
     # which the Snowflake Semantic View emitter turns into a literal DDL
     # PRIMARY KEY clause.
     result = parse_sml_repo(sml_repo_dir)
-    by_name = {d.name: d for d in result.document.semantic_model[0].datasets}
+    by_name = {d.name: d for d in result.document.datasets}
     assert by_name["orders"].primary_key is None
     assert by_name["customers"].primary_key == ["customer_id"]
 
 
 def test_relationship_resolves_dimension_level_to_backing_dataset(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    rel = result.document.semantic_model[0].relationships[0]
+    rel = result.document.relationships[0]
     assert rel.name == "orders_to_customer"
     assert rel.from_dataset == "orders"
     assert rel.to == "customers"
@@ -61,14 +61,14 @@ def test_relationship_resolves_dimension_level_to_backing_dataset(sml_repo_dir):
 
 def test_plain_metric_becomes_aggregate_sql(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    metrics = {m.name: m for m in result.document.semantic_model[0].metrics}
+    metrics = {m.name: m for m in result.document.metrics}
     assert metrics["total_revenue"].expression.dialects[0].expression == "SUM(orders.amount)"
     assert metrics["order_count"].expression.dialects[0].expression == "COUNT(DISTINCT orders.order_id)"
 
 
 def test_ratio_metric_calc_reconstructs_ansi_sql(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    metrics = {m.name: m for m in result.document.semantic_model[0].metrics}
+    metrics = {m.name: m for m in result.document.metrics}
     avg = metrics["avg_order_value"]
     assert avg.expression.dialects[0].dialect.value == "ANSI_SQL"
     assert avg.expression.dialects[0].expression == "SUM(orders.amount) / COUNT(DISTINCT orders.order_id)"
@@ -77,7 +77,7 @@ def test_ratio_metric_calc_reconstructs_ansi_sql(sml_repo_dir):
 
 def test_arbitrary_mdx_metric_calc_passes_through_verbatim(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    metrics = {m.name: m for m in result.document.semantic_model[0].metrics}
+    metrics = {m.name: m for m in result.document.metrics}
     growth = metrics["yoy_revenue_growth"]
     assert growth.expression.dialects[0].dialect.value == "MDX"
     assert growth.expression.dialects[0].expression.startswith("([Measures].[total_revenue]")
@@ -88,7 +88,7 @@ def test_unsupported_object_type_is_stashed_not_dropped(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
     assert any("pii_restriction" in w and w.startswith("LOSSY:") for w in result.warnings)
 
-    ext = result.document.semantic_model[0].custom_extensions[0]
+    ext = result.document.custom_extensions[0]
     assert ext.vendor_name == "SML"
     stash = json.loads(ext.data)
     assert "pii_restriction" in stash["unsupported_objects"]
@@ -97,7 +97,7 @@ def test_unsupported_object_type_is_stashed_not_dropped(sml_repo_dir):
 
 def test_dimension_hierarchy_structure_is_stashed_for_round_trip(sml_repo_dir):
     result = parse_sml_repo(sml_repo_dir)
-    ext = result.document.semantic_model[0].custom_extensions[0]
+    ext = result.document.custom_extensions[0]
     stash = json.loads(ext.data)
     assert "Customer Dimension" in stash["dimensions"]
     assert "Date Dimension" in stash["dimensions"]

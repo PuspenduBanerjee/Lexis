@@ -16,7 +16,7 @@ def tpcds_document():
 
 @pytest.fixture
 def tpcds_model(tpcds_document):
-    return ResolvedModel.build(tpcds_document.semantic_model[0])
+    return ResolvedModel.build(tpcds_document)
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def retail_model() -> ResolvedModel:
     dimensions, used for the cross-fact group_by/drill-across tests (tpcds_model
     only has one fact table, so it can't exercise those)."""
     yaml_text = (resources.files("lexis_api.sample_data") / "retail_analytics_model.yaml").read_text()
-    return ResolvedModel.build(parse_ossie_yaml(yaml_text).semantic_model[0])
+    return ResolvedModel.build(parse_ossie_yaml(yaml_text))
 
 
 @pytest.fixture

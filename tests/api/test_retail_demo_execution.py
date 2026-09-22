@@ -18,7 +18,7 @@ def retail_yaml() -> str:
 
 
 def test_retail_model_hints_its_us_retail_week_in_ai_context(retail_yaml):
-    model = ResolvedModel.build(parse_ossie_yaml(retail_yaml).semantic_model[0])
+    model = ResolvedModel.build(parse_ossie_yaml(retail_yaml))
     assert time_axis_refs(model) == ["dim_date.d_date"]
     instructions = model_instructions(model)
     assert "time_grain=week" in instructions
@@ -32,7 +32,7 @@ def test_model_detail_api_exposes_the_same_instructions_the_mcp_servers_use(clie
     # "don't combine sales and returns" or the US retail week note - even though
     # the Python MCP servers' own list_metrics/server instructions always did,
     # via this same model_instructions(). Both surfaces must now agree exactly.
-    model = ResolvedModel.build(parse_ossie_yaml(retail_yaml).semantic_model[0])
+    model = ResolvedModel.build(parse_ossie_yaml(retail_yaml))
     expected = model_instructions(model)
 
     resp = client_as("editor").post("/api/models", json={"yaml_text": retail_yaml})

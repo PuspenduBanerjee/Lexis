@@ -22,12 +22,11 @@ def update_model_graph(
 ) -> ModelDetailOut:
     document = parse_ossie_yaml(record.raw_yaml)
     updated_document = apply_graph_edit(document, body)
-    updated_semantic_model = updated_document.semantic_model[0]
 
     record.raw_yaml = updated_document.to_ossie_yaml()
     db.add(record)
     db.commit()
     db.refresh(record)
 
-    model = ResolvedModel.build(updated_semantic_model)
+    model = ResolvedModel.build(updated_document)
     return to_detail_out(record, model)

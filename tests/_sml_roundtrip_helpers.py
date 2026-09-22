@@ -151,9 +151,10 @@ def build_ossie_document(rnd: Rnd) -> dict[str, Any]:
 
     return {
         "version": "0.2.0.dev0",
-        "semantic_model": [
-            {"name": "generated_model", "datasets": datasets, "relationships": relationships, "metrics": metrics}
-        ],
+        "name": "generated_model",
+        "datasets": datasets,
+        "relationships": relationships,
+        "metrics": metrics,
     }
 
 
@@ -174,8 +175,8 @@ def assert_ossie_roundtrip(document_dict: dict[str, Any]) -> None:
             path.write_text(content)
         parsed = parse_sml_repo(tmp_path)
 
-    original = document.semantic_model[0]
-    reparsed = parsed.document.semantic_model[0]
+    original = document
+    reparsed = parsed.document
 
     assert {d.name for d in reparsed.datasets} == {d.name for d in original.datasets}
 

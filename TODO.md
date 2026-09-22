@@ -95,3 +95,32 @@ Deferred items, not blocking current functionality.
   passes `mode="demo"`) - there's no upload-a-.duckdb-file option there, unlike the
   Test Metrics tab's full `TimeSeriesPanel`. If the selected metric/time-field combo
   isn't demo-compatible, the preview just shows the backend's 400 error text.
+
+## Metric group_by field hygiene (`ResolvedModel.metric_allowed_group_by`)
+
+- **Every field of a metric's home fact(s)/reachable dimensions is currently
+  offered as a valid `group_by`**, including ones that are structurally *safe*
+  (no cross-fact fan-trap - that's what `metric_allowed_group_by` in
+  `src/lexis/resolved_model.py` guards against) but not actually *sensible* to
+  group by:
+  - **Surrogate keys** - the 14 `*_sk` foreign/primary key columns (`ss_item_sk`,
+    `d_date_sk`, `s_store_sk`, ...). Grouping by one produces a row per opaque
+    integer id, not a human-readable dimension value - a real dimension attribute
+    on the same table (e.g. `i_category`, `d_year`) is what a caller almost always
+    wants instead.
+  - **Raw measure columns living on a fact table** (e.g. `ss_quantity`,
+    `ss_ext_sales_price` themselves, as opposed to a dimension attribute) - legal
+    to group by today, but grouping a SUM by one of its own inputs is rarely a
+    meaningful query (mostly one-row-per-value noise).
+  - **PII** - `dim_customer.c_email`, `customer_full_name`, `c_customer_id` are
+    currently groupable like any other dimension attribute; a governed query tool
+    arguably shouldn't hand an agent a `GROUP BY customer email` button at all.
+
+  None of this is enforced anywhere yet - `allowed_group_by_refs` includes every
+  field of every reachable dataset indiscriminately. A real fix would need a
+  place to mark a field's role (surrogate key / measure / PII) - Ossie's
+  `OssieField` has no such flag today, so this likely wants either a
+  `custom_extensions` convention (mirroring how `week_start` was added for a
+  similar "Ossie has no field for this" gap) or a naming-convention heuristic
+  (`*_sk` suffix, matching a dataset's own `primary_key`) as a first pass before
+  a real schema field is worth adding upstream.

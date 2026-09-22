@@ -195,8 +195,8 @@ def _metric_ref_for_aggregate(
 
 
 def emit_sml_files(document: OssieDocument) -> SmlEmitResult:
-    """Render `document`'s first semantic model as an SML file set."""
-    semantic_model = document.semantic_model[0]
+    """Render `document`'s semantic model as an SML file set."""
+    semantic_model = document
     model = ResolvedModel.build(semantic_model)
     warnings: list[str] = []
     files: dict[str, str] = {}

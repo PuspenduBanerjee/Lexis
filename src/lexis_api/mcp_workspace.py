@@ -36,16 +36,24 @@ from lexis_api.connection_runtime import emitter_for_connection_type, open_conne
 from lexis_api.deps import find_connection_or_404, find_model_or_404
 from lexis_api.models import Connection, SemanticModelRecord
 
+# Every tool here only ever reads data - never mutates anything - so an agent can
+# call any of them without the confirmation prompt a mutating tool would get. See
+# webmachinelearning.github.io/webmcp/#dictdef-toolannotations (WebMCP's tools
+# already declare this; this server didn't).
+_READ_ONLY = {"readOnlyHint": True}
+
 _TOOLS = [
     types.Tool(
         name="list_models",
         description="List every semantic model available in this Lexis workspace.",
         inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
+        annotations=_READ_ONLY,
     ),
     types.Tool(
         name="list_connections",
         description="List every data connection available to run queries against.",
         inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
+        annotations=_READ_ONLY,
     ),
     types.Tool(
         name="list_metrics",
@@ -59,6 +67,7 @@ _TOOLS = [
             "required": ["model_id"],
             "additionalProperties": False,
         },
+        annotations=_READ_ONLY,
     ),
     types.Tool(
         name="query_metric",
@@ -100,6 +109,7 @@ _TOOLS = [
             "required": ["model_id", "metric", "connection_id"],
             "additionalProperties": False,
         },
+        annotations=_READ_ONLY,
     ),
 ]
 
@@ -107,15 +117,26 @@ _TOOLS = [
 def _resolved_model(db: Session, model_id: int) -> tuple[SemanticModelRecord, ResolvedModel]:
     record = find_model_or_404(db, model_id)
     document = parse_ossie_yaml(record.raw_yaml)
-    return record, ResolvedModel.build(document.semantic_model[0])
+    return record, ResolvedModel.build(document)
 
 
 def _list_models(db: Session) -> dict[str, Any]:
     records = db.query(SemanticModelRecord).order_by(SemanticModelRecord.id).all()
     models = []
     for record in records:
-        semantic_model = parse_ossie_yaml(record.raw_yaml).semantic_model[0]
-        models.append({"id": record.id, "name": record.name, "description": semantic_model.description})
+        model = ResolvedModel.build(parse_ossie_yaml(record.raw_yaml))
+        models.append(
+            {
+                "id": record.id,
+                "name": record.name,
+                "description": model.semantic_model.description,
+                # Union of what this tool used to return (description) and what
+                # WebMCP's list_models already did (the counts) - the two had
+                # diverged; ModelSummaryOut (the REST list endpoint) has both.
+                "dataset_count": len(model.datasets),
+                "metric_count": len(model.metrics),
+            }
+        )
     return {"models": models}
 
 

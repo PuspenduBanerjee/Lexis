@@ -39,8 +39,7 @@ def main() -> None:
 def transpile(model_path: str, target: str, metric: str | None, group_by: tuple[str, ...], out: str | None) -> None:
     """Parse an Ossie model and emit it in the given TARGET format."""
     document = load_ossie_document(model_path)
-    semantic_model = document.semantic_model[0]
-    model = ResolvedModel.build(semantic_model)
+    model = ResolvedModel.build(document)
 
     try:
         result = dispatch_transpile(document, model, target, metric, list(group_by) or None)
@@ -254,7 +253,7 @@ def mcp_serve(
         raise click.UsageError("pass exactly one of --demo, --duckdb-file, or --snowflake-account")
 
     document = load_ossie_document(model_path)
-    model = ResolvedModel.build(document.semantic_model[0])
+    model = ResolvedModel.build(document)
 
     from lexis import mcp_server as mcp_server_module
     from lexis.transpilers.sql import DuckDBEmitter, SnowflakeEmitter

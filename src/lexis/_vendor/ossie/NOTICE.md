@@ -1,6 +1,6 @@
 Vendored from https://github.com/apache/ossie
 Path: python/src/ossie
-Commit: 89bb502bf8e00567c58c439f573bb869a3621a90
+Commit: 6d37d7b61183f6405e3a4e65ec883b10ebe0ce2c
 License: Apache License 2.0 (c) The Apache Software Foundation
 
 This code is vendored (not installed as a dependency) because `apache-ossie`

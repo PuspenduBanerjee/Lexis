@@ -87,7 +87,7 @@ def run_duckdb(
     record: SemanticModelRecord = Depends(get_visible_model),
 ) -> RunDuckDbOut:
     document = parse_ossie_yaml(record.raw_yaml)
-    model = ResolvedModel.build(document.semantic_model[0])
+    model = ResolvedModel.build(document)
     group_by: list[str] = json.loads(group_by_json)
 
     metric_obj = model.metrics.get(metric)
@@ -138,7 +138,7 @@ def run_duckdb_timeseries(
     tab's and Run tab's drill-down/roll-up time-series view. `filter_grain`/
     `filter_value` restrict to one coarser period, for drilling into it."""
     document = parse_ossie_yaml(record.raw_yaml)
-    model = ResolvedModel.build(document.semantic_model[0])
+    model = ResolvedModel.build(document)
 
     metric_obj = model.metrics.get(metric)
     if metric_obj is None:

@@ -65,7 +65,7 @@ class _MCPModelEndpoint:
                 return
 
             document = parse_ossie_yaml(record.raw_yaml)
-            model = ResolvedModel.build(document.semantic_model[0])
+            model = ResolvedModel.build(document)
             emitter = emitter_for_connection_type(conn.type)
 
             def execute(

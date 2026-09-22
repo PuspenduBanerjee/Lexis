@@ -36,16 +36,15 @@ class DbtOssieResult:
 
 def _source_shape_warnings(document: OssieDocument) -> list[str]:
     warnings = []
-    for semantic_model in document.semantic_model:
-        for dataset in semantic_model.datasets:
-            parts = dataset.source.split(".")
-            if len(parts) != 3:
-                warnings.append(
-                    f"dataset {dataset.name!r} source {dataset.source!r} is not "
-                    "'database.schema.alias' — dbt requires it resolve to a dbt model "
-                    "in the target project; this dataset will likely fail to parse "
-                    "under dbt-core's Ossie ingestion until corrected."
-                )
+    for dataset in document.datasets:
+        parts = dataset.source.split(".")
+        if len(parts) != 3:
+            warnings.append(
+                f"dataset {dataset.name!r} source {dataset.source!r} is not "
+                "'database.schema.alias' — dbt requires it resolve to a dbt model "
+                "in the target project; this dataset will likely fail to parse "
+                "under dbt-core's Ossie ingestion until corrected."
+            )
     return warnings
 
 

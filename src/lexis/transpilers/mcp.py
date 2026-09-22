@@ -8,7 +8,7 @@ instead of having to guess joins/columns/synonyms from a bare warehouse schema.
 
 import json
 
-from lexis._vendor.ossie import OssieAIContextObject, OssieDataType, OssieDialect
+from lexis._vendor.ossie import OssieAIContextObject, OssieDataType, OssieDialect, OssieMetric
 from lexis.resolved_model import ResolvedModel
 from lexis.transpilers.sql.base import SqlDialectEmitter
 
@@ -67,6 +67,17 @@ def model_instructions(model: ResolvedModel) -> str:
     return _describe_ai_context(None, model.semantic_model.ai_context)
 
 
+def metric_description(metric: OssieMetric) -> str:
+    """A metric's plain `description` composed with its `ai_context` (synonyms as
+    "Also known as: ...", examples as "Example questions: ..."). This is the exact
+    text `build_metric_tool_specs` uses for a `query_<metric>` tool's description -
+    exposed as its own function (rather than only inline there) so REST API
+    consumers (`lexis_api.schemas.to_metric_out`) can show metadata clients the
+    identical text WebMCP/MCP tool descriptions do, instead of just the bare
+    `description` field and silently dropping the synonyms/examples."""
+    return _describe_ai_context(metric.description, metric.ai_context)
+
+
 def _describe_ai_context(base_description: str | None, ai_context) -> str:
     parts = [base_description] if base_description else []
     if ai_context is None:
@@ -83,12 +94,17 @@ def _describe_ai_context(base_description: str | None, ai_context) -> str:
     return " ".join(p.strip() for p in parts if p and p.strip())
 
 
-def _dimension_refs(model: ResolvedModel) -> list[str]:
-    refs = []
-    for dataset_name, dataset in model.datasets.items():
-        for f in dataset.fields or []:
-            refs.append(f"{dataset_name}.{f.name}")
-    return refs
+def metric_group_by_refs(model: ResolvedModel, metric: OssieMetric) -> list[str]:
+    """`dataset.field` refs `metric` may legally be grouped by - its home fact's
+    own fields plus the dimensions *that fact* reaches (see
+    `ResolvedModel.metric_allowed_group_by`), not every field in the model. A
+    metric whose expression can't be resolved to any dialect gets an empty set
+    (it can't be queried at all, so nothing is a valid group_by either)."""
+    try:
+        expr = model.resolve_expression(metric.expression, OssieDialect.ANSI_SQL)
+    except Exception:
+        return []
+    return model.metric_allowed_group_by(expr)
 
 
 def _time_bucketing_properties(time_refs: list[str]) -> dict:
@@ -123,13 +139,16 @@ def build_metric_tool_specs(model: ResolvedModel) -> list[dict]:
     tool schema, shared by the static manifest below and the live MCP server
     (`lexis.mcp_server`), which additionally needs plain schema dicts it can turn
     into `mcp.types.Tool` objects (no extra `_lexis`-style fields)."""
-    dimension_refs = _dimension_refs(model)
     time_refs = time_axis_refs(model)
     time_properties = _time_bucketing_properties(time_refs) if time_refs else {}
     specs = []
 
     for metric in model.metrics.values():
-        description = _describe_ai_context(metric.description, metric.ai_context)
+        description = metric_description(metric)
+        # Per-metric, not every field in the model - grouping a sales metric by
+        # a returns-only field (or vice versa) would fan-trap through the shared
+        # dim_date join (see ResolvedModel.metric_allowed_group_by).
+        dimension_refs = metric_group_by_refs(model, metric)
         specs.append(
             {
                 "name": f"query_{metric.name}",
@@ -148,6 +167,11 @@ def build_metric_tool_specs(model: ResolvedModel) -> list[dict]:
                     },
                     "additionalProperties": False,
                 },
+                # This tool only ever reads data - never mutates anything - so an
+                # agent can call it without the confirmation prompt a mutating tool
+                # would get. See webmachinelearning.github.io/webmcp/#dictdef-toolannotations
+                # (WebMCP's tools already declare this; the MCP servers didn't).
+                "annotations": {"readOnlyHint": True},
             }
         )
 

@@ -60,7 +60,7 @@ def seed_sample_models(db: Session) -> None:
 
     for filename, owner_id in _SAMPLE_MODELS:
         yaml_text = (resources.files("lexis_api.sample_data") / filename).read_text()
-        name = parse_ossie_yaml(yaml_text).semantic_model[0].name
+        name = parse_ossie_yaml(yaml_text).name
         row = existing.get(name)
         if row is None:
             if fresh_install:

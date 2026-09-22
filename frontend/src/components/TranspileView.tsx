@@ -3,7 +3,6 @@ import { useState } from "react";
 import { api, ApiError } from "../api/client";
 import { ALL_TARGETS, SQL_TARGETS, type ModelDetailOut, type Target } from "../api/types";
 import { FileTree } from "./FileTree";
-import { fieldRefs } from "../lib/fieldRefs";
 
 export function TranspileView({ model }: { model: ModelDetailOut }) {
   const [target, setTarget] = useState<Target>("duckdb");
@@ -11,7 +10,9 @@ export function TranspileView({ model }: { model: ModelDetailOut }) {
   const [groupBy, setGroupBy] = useState<string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const isSql = (SQL_TARGETS as string[]).includes(target);
-  const refs = fieldRefs(model);
+  // Per-metric (not fieldRefs(model)) - a sales metric can't legally be
+  // grouped by a returns-only field, or vice versa. See MetricOut.group_by.
+  const refs = model.metrics.find((m) => m.name === metric)?.group_by ?? [];
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -44,7 +45,13 @@ export function TranspileView({ model }: { model: ModelDetailOut }) {
         {isSql && (
           <label>
             Metric{" "}
-            <select value={metric} onChange={(e) => setMetric(e.target.value)}>
+            <select
+              value={metric}
+              onChange={(e) => {
+                setMetric(e.target.value);
+                setGroupBy([]); // the old selection may not be valid for the new metric
+              }}
+            >
               {model.metrics.map((m) => (
                 <option key={m.name} value={m.name}>
                   {m.name}

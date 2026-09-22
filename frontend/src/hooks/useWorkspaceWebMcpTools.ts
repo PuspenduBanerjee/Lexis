@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { api } from "../api/client";
-import { fieldRefs } from "../lib/fieldRefs";
 import { MCP_TIME_GRAINS, resolveTimeField, timeFieldRefs } from "../lib/webmcpMetrics";
 import { useWebMcpTools, type WebMcpTool } from "../lib/webmcp";
 
@@ -20,12 +19,17 @@ export function useWorkspaceWebMcpTools(): void {
         name: "list_models",
         description: "List every semantic model available in this Lexis workspace.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        annotations: { readOnlyHint: true },
         execute: async () => {
           const models = await api.listModels();
           return {
+            // Union of what this tool used to return (dataset_count/metric_count)
+            // and what the server's list_models already did (description) - the
+            // two had diverged; ModelSummaryOut has both.
             models: models.map((m) => ({
               id: m.id,
               name: m.name,
+              description: m.description,
               dataset_count: m.dataset_count,
               metric_count: m.metric_count,
             })),
@@ -36,6 +40,7 @@ export function useWorkspaceWebMcpTools(): void {
         name: "list_connections",
         description: "List every data connection available to run queries against.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        annotations: { readOnlyHint: true },
         execute: async () => {
           const connections = await api.listConnections();
           return { connections: connections.map((c) => ({ id: c.id, name: c.name, type: c.type })) };
@@ -52,16 +57,26 @@ export function useWorkspaceWebMcpTools(): void {
           required: ["model_id"],
           additionalProperties: false,
         },
+        annotations: { readOnlyHint: true },
         execute: async (input) => {
           const model = await api.getModel(Number(input.model_id));
           return {
+            // `tool_description` (not the bare `description`) so synonyms/examples
+            // from ai_context show up here the same way they do in the MCP
+            // servers' tool descriptions - see MetricOut.tool_description.
+            // `m.group_by` (not fieldRefs(model)) so a sales metric doesn't
+            // advertise returns-only fields (or vice versa) - see MetricOut.group_by.
             metrics: model.metrics.map((m) => ({
               name: m.name,
-              description: m.description,
-              group_by: fieldRefs(model),
+              description: m.tool_description,
+              group_by: m.group_by,
             })),
             time_grains: MCP_TIME_GRAINS,
             time_fields: timeFieldRefs(model),
+            // Model-level ai_context - e.g. "keep sales and returns in separate
+            // queries" - mirrors lexis_api.mcp_workspace._list_metrics, which adds
+            // this from the same model_instructions() this field is sourced from.
+            ...(model.instructions ? { instructions: model.instructions } : {}),
           };
         },
       },
@@ -92,12 +107,15 @@ export function useWorkspaceWebMcpTools(): void {
             },
             time_field: {
               type: "string",
-              description: "dataset.field date axis for time_grain - see list_metrics (time_fields)",
+              description:
+                "dataset.field date axis for time_grain - see list_metrics (time_fields); " +
+                "optional when the model has exactly one",
             },
           },
           required: ["model_id", "metric", "connection_id"],
           additionalProperties: false,
         },
+        annotations: { readOnlyHint: true },
         execute: async (input) => {
           const modelId = Number(input.model_id);
           const metric = String(input.metric);

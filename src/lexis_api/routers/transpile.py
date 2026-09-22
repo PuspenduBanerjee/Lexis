@@ -18,6 +18,6 @@ def transpile_model(
     record: SemanticModelRecord = Depends(get_visible_model),
 ) -> TranspileOut:
     document = parse_ossie_yaml(record.raw_yaml)
-    model = ResolvedModel.build(document.semantic_model[0])
+    model = ResolvedModel.build(document)
     result = dispatch_transpile(document, model, body.target, body.metric, body.group_by)
     return TranspileOut(content=result.content, warnings=result.warnings)

@@ -120,6 +120,12 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showMetrics, setShowMetrics] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  // Bumped by `applyLayout` to force a `<ReactFlow>` remount, since `fitView` (used
+  // as a static prop below) only runs on mount - this re-triggers it against the
+  // freshly-arranged positions without needing a `ReactFlowProvider`/`useReactFlow`
+  // imperative handle just for this one button.
+  const [layoutVersion, setLayoutVersion] = useState(0);
+  const [direction, setDirection] = useState<"TB" | "LR">("TB");
 
   // Fullscreen is a CSS overlay (not the browser Fullscreen API, which can be
   // blocked in embedded/iframed contexts) - so exiting via Escape and locking
@@ -187,6 +193,26 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
     setNodes((prev) => prev.filter((n) => n.id !== selectedId));
     setEdges((prev) => prev.filter((e) => e.source !== selectedId && e.target !== selectedId));
     setSelectedId(null);
+  };
+
+  /** Reruns the same dagre layout used on initial load, against the *current* live
+   * graph (so datasets/metrics/relationships added or edited since load are laid
+   * out too), in the given direction, then forces a viewport refit via
+   * `layoutVersion`. Also used to switch between top-bottom and left-right, since
+   * a direction change is meaningless without re-arranging to match it. */
+  const applyLayout = (dir: "TB" | "LR") => {
+    const datasetNames = nodes.filter(isDatasetNode).map((n) => n.id);
+    const datasetNameSet = new Set(datasetNames);
+    const layoutEdges = edges.map((e) => ({ from: e.source, to: e.target }));
+    const metricInputs = nodes.filter(isMetricNode).map((n) => ({
+      name: n.data.metric.name,
+      referencedDatasets: referencedDatasets(n.data.metric.expression, datasetNameSet),
+    }));
+    const positions = computeLayout(datasetNames, layoutEdges, metricInputs, dir);
+
+    setNodes((current) => current.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
+    setDirection(dir);
+    setLayoutVersion((v) => v + 1);
   };
 
   const addMetric = () => {
@@ -286,6 +312,24 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
         <button className="primary" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? "Saving…" : "Save graph"}
         </button>
+        <div className="row" style={{ gap: 4 }}>
+          <button
+            className={direction === "TB" ? "primary" : undefined}
+            onClick={() => applyLayout("TB")}
+            disabled={!nodes.some(isDatasetNode)}
+            title="Arrange top to bottom"
+          >
+            ↓ Top-Bottom
+          </button>
+          <button
+            className={direction === "LR" ? "primary" : undefined}
+            onClick={() => applyLayout("LR")}
+            disabled={!nodes.some(isDatasetNode)}
+            title="Arrange left to right"
+          >
+            → Left-Right
+          </button>
+        </div>
         <label className="row" style={{ gap: 4 }}>
           <input
             type="checkbox"
@@ -314,7 +358,8 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
         Drag between the small dots on the left/right of a dataset box to create a relationship. Click a
         metric to edit its expression/description or delete it; dashed edges point from a metric to every
         dataset its expression currently references, updating live as you type. Node positions aren't saved
-        yet (auto-arranged on every load) — see TODO.md.
+        yet (auto-arranged on every load) — see TODO.md. Use the "Top-Bottom"/"Left-Right" buttons to
+        re-run the layout in either direction at any time.
         {fullscreen && " Press Escape or “Exit fullscreen” to leave fullscreen."}
       </p>
 
@@ -326,6 +371,7 @@ export function GraphEditor({ model }: { model: ModelDetailOut }) {
         }
       >
         <ReactFlow
+          key={layoutVersion}
           nodes={visibleNodes}
           edges={visibleEdges}
           nodeTypes={nodeTypes}

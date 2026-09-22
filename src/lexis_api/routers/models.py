@@ -28,11 +28,7 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 
 def _resolved_model(record: SemanticModelRecord) -> ResolvedModel:
     document = parse_ossie_yaml(record.raw_yaml)
-    if len(document.semantic_model) != 1:
-        raise ValueError(
-            f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
-        )
-    return ResolvedModel.build(document.semantic_model[0])
+    return ResolvedModel.build(document)
 
 
 @router.get("", response_model=list[ModelSummaryOut])
@@ -51,15 +47,10 @@ def create_model(
     user: User = Depends(require_editor_or_admin),
 ) -> ModelDetailOut:
     document = parse_ossie_yaml(body.yaml_text)
-    if len(document.semantic_model) != 1:
-        raise ValueError(
-            f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
-        )
-    semantic_model = document.semantic_model[0]
-    model = ResolvedModel.build(semantic_model)
+    model = ResolvedModel.build(document)
 
     record = SemanticModelRecord(
-        name=body.name or semantic_model.name,
+        name=body.name or document.name,
         owner_id=user.id,
         raw_yaml=body.yaml_text,
     )
@@ -98,15 +89,10 @@ def import_sml_model(
             raise HTTPException(422, str(exc)) from exc
 
     document = result.document
-    if len(document.semantic_model) != 1:
-        raise HTTPException(
-            422, f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
-        )
-    semantic_model = document.semantic_model[0]
-    model = ResolvedModel.build(semantic_model)
+    model = ResolvedModel.build(document)
     yaml_text = document.to_ossie_yaml()
 
-    record = SemanticModelRecord(name=name or semantic_model.name, owner_id=user.id, raw_yaml=yaml_text)
+    record = SemanticModelRecord(name=name or document.name, owner_id=user.id, raw_yaml=yaml_text)
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -125,11 +111,7 @@ def update_model(
     record: SemanticModelRecord = Depends(get_owned_or_admin_model),
 ) -> ModelDetailOut:
     document = parse_ossie_yaml(body.yaml_text)
-    if len(document.semantic_model) != 1:
-        raise ValueError(
-            f"Ossie document must contain exactly one semantic_model entry, got {len(document.semantic_model)}"
-        )
-    model = ResolvedModel.build(document.semantic_model[0])
+    model = ResolvedModel.build(document)
 
     record.raw_yaml = body.yaml_text
     db.add(record)

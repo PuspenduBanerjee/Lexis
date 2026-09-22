@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from lexis._vendor.ossie import OssieDataset, OssieDialect, OssieMetric, OssieRelationship
 from lexis.resolved_model import MissingExpressionError, ResolvedModel
+from lexis.transpilers.mcp import metric_description, model_instructions, time_axis_refs
 from lexis_api.models import Connection, SemanticModelRecord
 
 TARGET = Literal[
@@ -70,6 +71,21 @@ class MetricOut(BaseModel):
     expression: str | None = None  # ANSI_SQL text, best-effort (None if unavailable)
     referenced_datasets: list[str] = []
     datatype: str | None = None  # OssieDataType value (e.g. "Decimal", "Integer"), if the model declares one
+    # `description` composed with ai_context (synonyms as "Also known as: ...",
+    # examples as "Example questions: ...") - the exact text a query_<metric> tool
+    # shows, via lexis.transpilers.mcp.metric_description. Falls back to "Query
+    # the X metric." like the tool schemas do, so it's never empty. Kept alongside
+    # the bare `description` above (which stays the plain, editable field) rather
+    # than replacing it, so editing a metric's description doesn't round-trip
+    # through this composed text.
+    tool_description: str
+    # `dataset.field` refs this specific metric may legally be grouped by - its
+    # home fact's own fields plus the dimensions *that fact* reaches (see
+    # ResolvedModel.metric_allowed_group_by / transpilers.mcp.metric_group_by_refs).
+    # Not every field in the model: grouping a sales metric by a returns-only
+    # field (or vice versa) fan-traps through the shared dim_date join, which is
+    # why this is per-metric rather than one model-wide list.
+    group_by: list[str]
 
 
 class ModelSummaryOut(BaseModel):
@@ -81,6 +97,9 @@ class ModelSummaryOut(BaseModel):
     metric_count: int
     created_at: datetime
     updated_at: datetime
+    # The model's plain (non-ai_context) description - see ModelDetailOut.instructions
+    # for the richer ai_context text. None when the model declares neither.
+    description: str | None = None
 
 
 class ModelDetailOut(ModelSummaryOut):
@@ -88,6 +107,19 @@ class ModelDetailOut(ModelSummaryOut):
     datasets: list[DatasetOut]
     relationships: list[RelationshipOut]
     metrics: list[MetricOut]
+    # Model-level ai_context (instructions/synonyms/examples), the same text the
+    # MCP servers surface as their `instructions` and in `list_metrics` (e.g. "keep
+    # sales and returns in separate queries") - lexis.transpilers.mcp.model_instructions
+    # is the single source of truth; None when the model declares no ai_context.
+    instructions: str | None = None
+    # `dataset.field` refs usable as a time_grain query's time axis - the same
+    # list (and same lexis.transpilers.mcp.time_axis_refs logic: prefer a real
+    # date/timestamp datatype, fall back to any is_time field only if the model
+    # tags none) the MCP servers' list_metrics/tool schemas use. A naive frontend
+    # scan of every `is_time` field diverges from this - e.g. picking up a
+    # `d_year` INTEGER column that isn't actually bucketable - so consumers should
+    # read this instead of re-deriving it from `datasets[].fields[].is_time`.
+    time_fields: list[str]
 
 
 class CreateModelIn(BaseModel):
@@ -127,6 +159,10 @@ class RunDuckDbOut(BaseModel):
     rows: list[list[Any]]
     row_count: int
     sql: str
+    # True when there were more rows than settings.max_result_rows and `rows` was
+    # cut off there - callers should re-query with a narrower group_by/time_grain
+    # rather than assume `rows` is the complete result.
+    truncated: bool = False
 
 
 class GraphFieldIn(BaseModel):
@@ -256,6 +292,8 @@ def to_metric_out(metric: OssieMetric, model: ResolvedModel) -> MetricOut:
         expression=expression,
         referenced_datasets=model.referenced_datasets(expression) if expression else [],
         datatype=metric.datatype.value if metric.datatype else None,
+        tool_description=metric_description(metric) or f"Query the {metric.name!r} metric.",
+        group_by=model.metric_allowed_group_by(expression) if expression else [],
     )
 
 
@@ -269,6 +307,7 @@ def to_summary_out(record: SemanticModelRecord, model: ResolvedModel) -> ModelSu
         metric_count=len(model.metrics),
         created_at=record.created_at,
         updated_at=record.updated_at,
+        description=model.semantic_model.description,
     )
 
 
@@ -280,4 +319,6 @@ def to_detail_out(record: SemanticModelRecord, model: ResolvedModel) -> ModelDet
         datasets=[to_dataset_out(d, model) for d in model.datasets.values()],
         relationships=[to_relationship_out(r) for r in model.relationships],
         metrics=[to_metric_out(m, model) for m in model.metrics.values()],
+        instructions=model_instructions(model) or None,
+        time_fields=time_axis_refs(model),
     )

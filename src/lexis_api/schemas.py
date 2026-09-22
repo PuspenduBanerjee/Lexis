@@ -25,6 +25,7 @@ TARGET = Literal[
     "dbt",
     "mcp",
     "snowflake_semantic_view",
+    "snowflake_cortex_analyst",
     "sml",
 ]
 
